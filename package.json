@@ -1,0 +1,16 @@
+{
+	"scripts": {
+		"dev": "npm run build -- --sourcemap=inline --watch",
+		"build": "esbuild js/*.ts --minify --format=esm --bundle --outdir=src/jupyter_anywidget_pglite/static  --loader:.html=text ",
+		"typecheck": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@wokwi/elements": "^1.5.1",
+		"esbuild-plugin-wasm": "^1.1.0"
+	},
+	"devDependencies": {
+		"@anywidget/types": "^0.1.9",
+		"esbuild": "^0.23.0",
+		"typescript": "^5.5.3"
+	}
+}

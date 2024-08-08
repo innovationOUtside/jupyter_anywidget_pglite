@@ -1,0 +1,34 @@
+ 
+ .pglite-app-container {margin-left:5px;}
+ 
+ #editor-container {
+        width: 100%;
+        height: 50vh;
+      }
+
+      #vfs-container {
+        margin-top: 0.5em;
+        margin-bottom: 0.5em;
+      }
+      #timestamp {
+        margin-top: 0.5em;
+      }
+
+      #output {
+        display: flex;
+        flex-wrap: wrap;
+        width: 100%;
+      }
+
+      table {
+        margin-top: 1em;
+        margin-left: 0.4em;
+        margin-right: 0.4em;
+        border-collapse: collapse;
+      }
+
+      td, th {
+        border: 1px solid #999;
+        padding: 0.5rem;
+        text-align: left;
+      }
