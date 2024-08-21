@@ -57,6 +57,10 @@ Having made a query onto the database via a magic cell, we can retrieve the resp
 pg.response
 ```
 
+If `pandas` is installed, we can get rows returned from a query response as a dataframe:
+
+`pg.df()`
+
 Close the panel (i.e. "disconnect" the database):
 
 ```python
@@ -66,8 +70,6 @@ w.close()
 
 ## TO DO
 
-- currently the database is ephemeral / not persistent; add option to use browser storage;
-- functions to nicely process the response from the database;
 - options to display outputs in the panel;
 - how to handle lots on inputs?
 - button to clear input history;

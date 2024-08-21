@@ -5,6 +5,12 @@ import pathlib
 
 import anywidget
 import traitlets
+import sys
+
+try:
+    import pandas as pd
+except:
+    pass
 
 try:
     __version__ = importlib.metadata.version("jupyter_anywidget_pglite")
@@ -31,6 +37,13 @@ class postgresWidget(anywidget.AnyWidget):
     def set_code_content(self, value):
         self.code_content = value
 
+    def df(self):
+        response = self.response["rows"]
+        if "pandas" in sys.modules:
+            _df = pd.DataFrame.from_records(response, index="id")
+            return _df
+        display("pandas not available...")
+        return response
 
 from .magics import PGliteMagic
 
