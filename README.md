@@ -18,11 +18,13 @@ pg = pglite_panel()
 # w = pglite_panel("example panel title)`
 # w = pglite_panel(None, "split-bottom")`
 
-# Headless mode (no HTML UI, works in Jupyter Lab, Jupyter Notebook, VS Code w/ Jupyter notebook support)
+# Headless mode (no HTML UI, works in:
+# Jupyter Lab, Jupyter Notebook, VS Code w/ Jupyter notebook support)
 #from jupyter_anywidget_pglite import pglite_headless
 #pg = pglite_headless()
 
-# Inline display — display HTML UI as initialising code cell outpu
+# Inline display
+# Display HTML UI as initialising code cell output
 # Display will be updated with consequent queries
 #from jupyter_anywidget_pglite import pglite_inline
 #pg = pglite_inline()
