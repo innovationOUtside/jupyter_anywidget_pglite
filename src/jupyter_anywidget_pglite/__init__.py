@@ -7,6 +7,9 @@ import anywidget
 import traitlets
 import sys
 
+from IPython.display import display
+
+
 try:
     import pandas as pd
 except:
@@ -63,7 +66,6 @@ def pglite_inline(idb=""):
 
 from functools import wraps
 from sidecar import Sidecar
-from IPython.display import display
 
 
 # Create a decorator to simplify panel autolaunch
