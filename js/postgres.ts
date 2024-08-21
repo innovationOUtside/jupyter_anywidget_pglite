@@ -56,7 +56,8 @@ function formatRows(
 
 function render({ model, el }: RenderContext<WidgetModel>) {
   // Initialize PGlite
-  const db = new PGlite();
+  const idb = model.get("idb");
+  const db =  idb ? new PGlite(idb) : new PGlite();
 
   const _headless = model.get("headless");
 

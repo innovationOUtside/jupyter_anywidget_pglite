@@ -19,10 +19,14 @@ class postgresWidget(anywidget.AnyWidget):
     code_content = traitlets.Unicode("").tag(sync=True)
     response = traitlets.Dict().tag(sync=True)
     headless = traitlets.Bool(False).tag(sync=True)
+    idb = traitlets.Unicode("").tag(sync=True)
 
-    def __init__(self, headless=False, **kwargs):
+    def __init__(self, headless=False, idb="", **kwargs):
         super().__init__(**kwargs)
         self.headless = headless
+        self.idb = ""
+        if idb:
+            self.idb = idb if idb.startswith("idb://") else f"idb://{idb}"
 
     def set_code_content(self, value):
         self.code_content = value
@@ -30,18 +34,17 @@ class postgresWidget(anywidget.AnyWidget):
 
 from .magics import PGliteMagic
 
-
 def load_ipython_extension(ipython):
     ipython.register_magics(PGliteMagic)
 
 
-def pglite_headless():
-    widget_ = postgresWidget(headless=True)
+def pglite_headless(idb=""):
+    widget_ = postgresWidget(headless=True, idb=idb)
     display(widget_)
     return widget_
 
-def pglite_inline():
-    widget_ = postgresWidget()
+def pglite_inline(idb=""):
+    widget_ = postgresWidget(idb=idb)
     display(widget_)
     return widget_
 
@@ -56,7 +59,7 @@ from IPython.display import display
 # Via Claude.ai
 def create_panel(widget_class):
     @wraps(widget_class)
-    def wrapper(title=None, anchor="split-right"):
+    def wrapper(title=None, anchor="split-right", idb=""):
         if title is None:
             title = f"{widget_class.__name__[:-6]} Output"  # Assuming widget classes end with 'Widget'
 
@@ -81,5 +84,5 @@ def create_panel(widget_class):
 # Launch with custom title as: pglite_panel("PGlite")
 # Use second parameter for anchor
 @create_panel
-def pglite_panel(title=None, anchor=None):
-    return postgresWidget()
+def pglite_panel(title=None, anchor=None, idb=""):
+    return postgresWidget(idb=idb)
