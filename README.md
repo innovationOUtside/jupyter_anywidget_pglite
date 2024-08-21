@@ -17,6 +17,15 @@ from jupyter_anywidget_pglite import pglite_panel
 pg = pglite_panel()
 # w = pglite_panel("example panel title)`
 # w = pglite_panel(None, "split-bottom")`
+
+# Headless mode (no HTML UI, works in Jupyter Lab, Jupyter Notebook, VS Code w/ Jupyter notebook support)
+#from jupyter_anywidget_pglite import pglite_headless
+#pg = pglite_headless()
+
+# Inline display — display HTML UI as initialising code cell outpu
+# Display will be updated with consequent queries
+#from jupyter_anywidget_pglite import pglite_inline
+#pg = pglite_inline()
 ```
 
 This should open a panel in the right-hand sidebar (`split-right`) by default:

@@ -1,7 +1,7 @@
 {
 	"scripts": {
 		"dev": "npm run build -- --sourcemap=inline --watch",
-		"build": "esbuild js/*.ts --minify --format=esm --bundle --outdir=src/jupyter_anywidget_pglite/static  --loader:.html=text ",
+		"build": "esbuild js/*.ts --minify --format=esm --bundle --outdir=src/jupyter_anywidget_pglite/static --loader:.html=text",
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {

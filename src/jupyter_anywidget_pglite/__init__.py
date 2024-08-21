@@ -18,6 +18,11 @@ class postgresWidget(anywidget.AnyWidget):
     # Create a traitlet for the code content
     code_content = traitlets.Unicode("").tag(sync=True)
     response = traitlets.Dict().tag(sync=True)
+    headless = traitlets.Bool(False).tag(sync=True)
+
+    def __init__(self, headless=False, **kwargs):
+        super().__init__(**kwargs)
+        self.headless = headless
 
     def set_code_content(self, value):
         self.code_content = value
@@ -25,12 +30,25 @@ class postgresWidget(anywidget.AnyWidget):
 
 from .magics import PGliteMagic
 
+
 def load_ipython_extension(ipython):
     ipython.register_magics(PGliteMagic)
+
+
+def pglite_headless():
+    widget_ = postgresWidget(headless=True)
+    display(widget_)
+    return widget_
+
+def pglite_inline():
+    widget_ = postgresWidget()
+    display(widget_)
+    return widget_
 
 from functools import wraps
 from sidecar import Sidecar
 from IPython.display import display
+
 
 # Create a decorator to simplify panel autolaunch
 # First parameter on decorated function is optional title

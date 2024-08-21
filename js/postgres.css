@@ -1,33 +1,24 @@
  
- .pglite-app-container {margin-left:5px;}
- 
- #editor-container {
-        width: 100%;
-        height: 50vh;
-      }
+.pglite-app-container {margin-left:5px;}
 
-      #vfs-container {
-        margin-top: 0.5em;
-        margin-bottom: 0.5em;
-      }
-      #timestamp {
+.pglite-app-container #pglite-timestamp {
         margin-top: 0.5em;
       }
 
-      #output {
+ .pglite-app-container [title="output"] {
         display: flex;
         flex-wrap: wrap;
         width: 100%;
       }
 
-      table {
+ .pglite-app-container table {
         margin-top: 1em;
         margin-left: 0.4em;
         margin-right: 0.4em;
         border-collapse: collapse;
       }
 
-      td, th {
+ .pglite-app-container td, th {
         border: 1px solid #999;
         padding: 0.5rem;
         text-align: left;

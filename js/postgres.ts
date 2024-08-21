@@ -58,31 +58,38 @@ function render({ model, el }: RenderContext<WidgetModel>) {
   // Initialize PGlite
   const db = new PGlite();
 
-  let el2 = document.createElement("div");
-  el2.innerHTML = html;
-  const uuid = generateUUID();
-  el2.id = uuid;
-  el.appendChild(el2);
+  const _headless = model.get("headless");
+
+  if (!_headless) {
+    let el2 = document.createElement("div");
+    el2.innerHTML = html;
+    const uuid = generateUUID();
+    el2.id = uuid;
+    el.appendChild(el2);
+  }
 
   //const runButton = el.querySelector('button[name="run-button"]');
 
   model.on("change:code_content", async () => {
-    const codeEditor = el.querySelector('div[title="code-editor"]');
-    const output = el.querySelector('div[title="output"]');
-    const results = el.querySelector('div[title="results"]');
+    const sql = model.get("code_content");
+    const response = await db.query(sql);
+    model.set("response", response);
 
-    if (codeEditor) {
-      const sql = model.get("code_content");
-      const response = await db.query(sql);
-      model.set("response", response);
-      codeEditor.innerHTML = codeEditor.innerHTML + "<br>" + model.get("code_content");
-  
+    if (!_headless) {
+      const codeEditor = el.querySelector('div[title="code-editor"]');
+      const output = el.querySelector('div[title="output"]');
+      const results = el.querySelector('div[title="results"]');
+
+      codeEditor.innerHTML =
+        codeEditor.innerHTML + "<br>" + model.get("code_content");
+
       output.innerHTML = JSON.stringify(response);
       const table = formatTable(response);
       formatRows(response, table);
       results.innerHTML = "";
       results.append(table);
     }
+
     model.save_changes();
   });
 }
