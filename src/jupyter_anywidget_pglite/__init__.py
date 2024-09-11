@@ -65,7 +65,6 @@ def pglite_inline(idb=""):
     return widget_
 
 from functools import wraps
-from sidecar import Sidecar
 
 
 # Create a decorator to simplify panel autolaunch
@@ -73,6 +72,8 @@ from sidecar import Sidecar
 # Second parameter on decorated function is optional anchor location
 # Via Claude.ai
 def create_panel(widget_class):
+    from sidecar import Sidecar
+
     @wraps(widget_class)
     def wrapper(title=None, anchor="split-right", idb=""):
         if title is None:

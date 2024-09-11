@@ -30,23 +30,27 @@ pg = pglite_panel()
 #pg = pglite_inline()
 ```
 
-This should open a panel in the right-hand sidebar (`split-right`) by default:
+This should open a panel in the right-hand sidebar (`split-right`) by default.
+
+The `-w / --widget-name` setting can be used to set the widget within the magic and it does not need to be passed again.
+
+The widget can also be set via line magic: `%setwidget g`
 
 Running queries on the database using IPython cell block magic `%%pglite WIDGET_VARIABLE`:
 
 ```python
-%%pglite_magic pg
+%%pglite_magic -w pg
 CREATE TABLE IF NOT EXISTS test  (
         id serial primary key,
         title varchar not null
       );
 
 #----
-%%pglite_magic pg
+%%pglite_magic
 INSERT INTO test (title) VALUES ('dummy');
 
 #----
-%%pglite_magic pg
+%%pglite_magic
 SELECT * FROM test;
 
 ```
