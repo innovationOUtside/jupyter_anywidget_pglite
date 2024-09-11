@@ -26,7 +26,18 @@ class PGliteMagic(Magics):
     @cell_magic
     @magic_arguments()
     @argument("-w", "--widget-name", type=str, help="widget variable name")
-    @argument("-m", "--multiple-statements", action='store_true', help="Allow naive ; separated multiple statements")  # Boolean flag
+    @argument(
+        "-m",
+        "--multiple-statements",
+        action="store_true",
+        help="Allow naive `;` separated multiple statements",
+    )  # Boolean flag
+    @argument(
+        "-M",
+        "--multiple-statement-block",
+        action="store_true",
+        help="Use exec to execute multiple statements",
+    )  # Boolean flag
     def pglite_magic(self, line, cell):
         args = parse_argstring(self.pglite_magic, line)
         if args.widget_name:
@@ -40,6 +51,7 @@ class PGliteMagic(Magics):
         elif cell:
             # Get the actual widget
             w = self.widget
+            w.multiexec = args.multiple_statement_block
             w.set_code_content(cell, split=splitter)
             # The w.response is the previous state so we can't return it
 

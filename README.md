@@ -61,7 +61,10 @@ SELECT * FROM test;
 
 ```
 
-To run multiple SQL statements in the same cell, use the `-m / --multiple-statements` flag (default: `False`) when calling the cell block magic. This will naively split the query on each `;` character, and then run each split item as a separate command. The response will be set to the response from the final query.
+To run multiple SQL statements in the same cell:
+
+- use the `-m / --multiple-statements` flag (default: `False`) when calling the cell block magic. This will naively split the query on each `;` character, and then run each split item as a separate command. The response will be set to the response from the final query;
+- use the `-M / --multiple-statement-block` flag to run all the tems using the `pglite` `.exec()` command.
 
 Having made a query onto the database via a magic cell, we can retrieve the response:
 

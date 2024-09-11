@@ -99,6 +99,7 @@ function render({ model, el }: RenderContext<WidgetModel>) {
 
     const sql = model.get("code_content");
     const multiline = model.get("multiline");
+    const multiexec = model.get("multiexec");
     let response: Response = {
       rows: [], // Initialize empty array
       fields: [
@@ -108,7 +109,16 @@ function render({ model, el }: RenderContext<WidgetModel>) {
         },
       ],
     };
-    if (multiline != "") {
+    if (multiexec) {
+      queryDisplay(sql);
+      let multi_response = await db.exec(sql);
+      // for now, just display the final item
+      resultDisplay(multi_response[multi_response.length - 1]);
+      model.set("response", {
+        response: multi_response,
+        response_type: "multi",
+      });
+    } else if (multiline != "") {
       const items = sql.split(multiline); // Splits the string into an array
 
       for (const item of items) {
@@ -119,12 +129,12 @@ function render({ model, el }: RenderContext<WidgetModel>) {
           resultDisplay(response);
         }
       }
-      model.set("response", response);
+      model.set("response", { response: response, response_type: "single" });
     } else {
       queryDisplay(sql);
       response = await db.query(sql);
       resultDisplay(response);
-      model.set("response", response);
+      model.set("response", { response: response, response_type: "single" });
     }
 
     model.save_changes();

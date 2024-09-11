@@ -29,6 +29,7 @@ class postgresWidget(anywidget.AnyWidget):
     response = traitlets.Dict().tag(sync=True)
     headless = traitlets.Bool(False).tag(sync=True)
     multiline = traitlets.Unicode("").tag(sync=True)
+    multiexec = traitlets.Bool(False).tag(sync=True)
     idb = traitlets.Unicode("").tag(sync=True)
 
     def __init__(self, headless=False, idb="", **kwargs):
@@ -43,7 +44,7 @@ class postgresWidget(anywidget.AnyWidget):
         self.code_content = value
 
     def df(self):
-        response = self.response["rows"]
+        response = self.response["response"]["rows"]
         if "pandas" in sys.modules:
             _df = pd.DataFrame.from_records(response, index="id")
             return _df
