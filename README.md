@@ -15,6 +15,9 @@ Usage:
 from jupyter_anywidget_pglite import pglite_panel
 
 pg = pglite_panel()
+#This should open a panel in the right-hand sidebar
+# (`split-right`) by default.
+
 # w = pglite_panel("example panel title)`
 # w = pglite_panel(None, "split-bottom")`
 
@@ -30,11 +33,14 @@ pg = pglite_panel()
 #pg = pglite_inline()
 ```
 
-This should open a panel in the right-hand sidebar (`split-right`) by default.
+To persist the database in browser storage, set the `idb='DBNAME`` parameter when creating a widget. For example:
 
-The `-w / --widget-name` setting can be used to set the widget within the magic and it does not need to be passed again.
+`pg_headless_persist = pglite_headless(idb="pglitetest1")`
 
-The widget can also be set via line magic: `%setwidget g`
+To run a query, place the query insde a `%%pglite` cell block magic.
+
+- use the `-w / --widget-name` setting to set the widget within the magic and it does not need to be passed again (for example, `%%pglite -w pg`)
+- alternatively, prior to calling the block magic, set the widget used in the magic via a line magic: `%setwidget pg`
 
 Running queries on the database using IPython cell block magic `%%pglite WIDGET_VARIABLE`:
 
@@ -55,7 +61,7 @@ SELECT * FROM test;
 
 ```
 
-To run mutliple SQL statements in the same cell, use the `-m / --multiple-statements` flag (default: `False`) when calling the cell block magic. This will naively split the query on each `;` character and run each split item as a separate command. The response will be set to the response from the final query.
+To run multiple SQL statements in the same cell, use the `-m / --multiple-statements` flag (default: `False`) when calling the cell block magic. This will naively split the query on each `;` character, and then run each split item as a separate command. The response will be set to the response from the final query.
 
 Having made a query onto the database via a magic cell, we can retrieve the response:
 
