@@ -26,10 +26,12 @@ class PGliteMagic(Magics):
     @cell_magic
     @magic_arguments()
     @argument("-w", "--widget-name", type=str, help="widget variable name")
+    @argument("-m", "--multiple-statements", action='store_true', help="Allow naive ; separated multiple statements")  # Boolean flag
     def pglite_magic(self, line, cell):
         args = parse_argstring(self.pglite_magic, line)
         if args.widget_name:
             self._set_widget(args.widget_name)
+        splitter = ";" if args.multiple_statements else ""
         if self.widget is None:
             print(
                 "Error: No widget / widget name set. Use %set_myAnywidget_object first to set the name."
@@ -38,7 +40,7 @@ class PGliteMagic(Magics):
         elif cell:
             # Get the actual widget
             w = self.widget
-            w.set_code_content(cell)
+            w.set_code_content(cell, split=splitter)
             # The w.response is the previous state so we can't return it
 
 ## %load_ext jupyter_anywidget_pglite

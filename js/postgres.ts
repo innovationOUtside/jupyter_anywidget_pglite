@@ -40,11 +40,15 @@ function formatTable(result: {
   });
   return table;
 }
+interface Response {
+  rows: any[]; // Array of any type
+  fields: {
+    name: string;
+    dataTypeID: number;
+  }[];
+}
 
-function formatRows(
-  result: { rows: any[]; fields: { name: string; dataTypeID: number }[] },
-  table: HTMLTableElement
-): void {
+function formatRows(result: Response, table: HTMLTableElement): void {
   result.rows.forEach((row) => {
     const tr = table.insertRow();
     result.fields.forEach((field) => {
@@ -71,23 +75,56 @@ function render({ model, el }: RenderContext<WidgetModel>) {
   //const runButton = el.querySelector('button[name="run-button"]');
 
   model.on("change:code_content", async () => {
-    const sql = model.get("code_content");
-    const response = await db.query(sql);
-    model.set("response", response);
-
-    if (!_headless) {
+    function queryDisplay(q) {
       const codeEditor = el.querySelector('div[title="code-editor"]');
+      codeEditor.innerHTML = codeEditor.innerHTML + "<br>" + q;
+    }
+    function resultDisplay(response) {
       const output = el.querySelector('div[title="output"]');
       const results = el.querySelector('div[title="results"]');
-
-      codeEditor.innerHTML =
-        codeEditor.innerHTML + "<br>" + model.get("code_content");
 
       output.innerHTML = JSON.stringify(response);
       const table = formatTable(response);
       formatRows(response, table);
       results.innerHTML = "";
       results.append(table);
+    }
+
+    function fullDisplay(q, r) {
+      if (!_headless) {
+        queryDisplay(q);
+        resultDisplay(r);
+      }
+    }
+
+    const sql = model.get("code_content");
+    const multiline = model.get("multiline");
+    let response: Response = {
+      rows: [], // Initialize empty array
+      fields: [
+        {
+          name: "", // Initialize empty string
+          dataTypeID: 0, // Initialize to some default number
+        },
+      ],
+    };
+    if (multiline != "") {
+      const items = sql.split(multiline); // Splits the string into an array
+
+      for (const item of items) {
+        const q = item.trim();
+        if (q !== "") {
+          queryDisplay(`${q};`);
+          response = await db.query(q);
+          resultDisplay(response);
+        }
+      }
+      model.set("response", response);
+    } else {
+      queryDisplay(sql);
+      response = await db.query(sql);
+      resultDisplay(response);
+      model.set("response", response);
     }
 
     model.save_changes();

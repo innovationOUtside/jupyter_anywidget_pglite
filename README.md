@@ -55,7 +55,7 @@ SELECT * FROM test;
 
 ```
 
-*Currently, it seems as if you can only run one instrcution at a time / per magic cell.*
+To run mutliple SQL statements in the same cell, use the `-m / --multiple-statements` flag (default: `False`) when calling the cell block magic. This will naively split the query on each `;` character and run each split item as a separate command. The response will be set to the response from the final query.
 
 Having made a query onto the database via a magic cell, we can retrieve the response:
 

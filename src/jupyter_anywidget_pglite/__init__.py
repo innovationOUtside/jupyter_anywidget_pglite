@@ -28,6 +28,7 @@ class postgresWidget(anywidget.AnyWidget):
     code_content = traitlets.Unicode("").tag(sync=True)
     response = traitlets.Dict().tag(sync=True)
     headless = traitlets.Bool(False).tag(sync=True)
+    multiline = traitlets.Unicode("").tag(sync=True)
     idb = traitlets.Unicode("").tag(sync=True)
 
     def __init__(self, headless=False, idb="", **kwargs):
@@ -37,7 +38,8 @@ class postgresWidget(anywidget.AnyWidget):
         if idb:
             self.idb = idb if idb.startswith("idb://") else f"idb://{idb}"
 
-    def set_code_content(self, value):
+    def set_code_content(self, value, split=""):
+        self.multiline = split
         self.code_content = value
 
     def df(self):
