@@ -121,6 +121,10 @@ Or create a new widget with the `pglite` database seeded from the file:
 
 `pg2 = pglite_panel(data="pgdata.tar.gz")`
 
+## Audible alerts
+
+To provide an audible alert when a query or a data dump generation operation has completed, set: `pg.audio = True`,
+
 ## TO DO
 
 - options to display outputs in the panel;

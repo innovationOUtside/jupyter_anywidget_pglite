@@ -9,6 +9,8 @@ import { generateUUID } from "./uuid";
 import { PGlite } from "https://cdn.jsdelivr.net/npm/@electric-sql/pglite/dist/index.js";
 //import PGlite from "https://cdn.jsdelivr.net/npm/@electric-sql/pglite@0.1.5/+esm";
 
+import { play_success } from "./audio";
+
 interface WidgetModel {
   datadump: string;
   code_content: string;
@@ -133,6 +135,7 @@ function render({ model, el }: RenderContext<WidgetModel>) {
 
         model.set("file_package", file_package);
         model.save_changes();
+        if (model.get("audio")) play_success();
       };
       reader.readAsDataURL(dumpfile);
     }
@@ -162,6 +165,8 @@ function render({ model, el }: RenderContext<WidgetModel>) {
     }
 
     const sql = model.get("code_content");
+    if (!sql) return
+
     const multiline = model.get("multiline");
     const multiexec = model.get("multiexec");
     let response: Response = {
@@ -175,6 +180,7 @@ function render({ model, el }: RenderContext<WidgetModel>) {
     };
     if (multiexec) {
       queryDisplay(sql);
+      
       let multi_response = await db.exec(sql);
       // for now, just display the final item
       resultDisplay(multi_response[multi_response.length - 1]);
@@ -202,7 +208,15 @@ function render({ model, el }: RenderContext<WidgetModel>) {
     }
 
     model.save_changes();
+    if (model.get("audio")) play_success();
   });
 }
+
+
+
+//---
+
+//---------
+
 
 export default { render };

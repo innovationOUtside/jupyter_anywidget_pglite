@@ -22,6 +22,12 @@ Install extra third party packages and add to config file as: `npm install PACKA
 
 Install node packages: `npm install`
 
+For Jupyterlab widget/toolbar:
+
+`npm install --save @jupyterlab/application`
+
+`npm install --save @jupyterlab/apputils`
+
 Build / package Typescript/JS: `npm run build`
 
 Build Python package (into `dist/`): `hatch build`

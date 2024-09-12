@@ -70,6 +70,7 @@ class postgresWidget(anywidget.AnyWidget):
     tarball = traitlets.Bytes(b'').tag(sync=True)
     idb = traitlets.Unicode("").tag(sync=True)
     file_package = traitlets.Dict().tag(sync=True)
+    audio = traitlets.Bool(False).tag(sync=True)
     # file_info = traitlets.Dict().tag(sync=True)
     # file_content = traitlets.Unicode().tag(sync=True)
     def __init__(self, headless=False, idb="", data=None, **kwargs):
@@ -84,13 +85,15 @@ class postgresWidget(anywidget.AnyWidget):
             if p.exists() and p.is_file():
                 data = load_datadump_from_file(data)
         # Could have more checks here about data validity
-        if data and isinstance(data, dict) and "file_info" in data and "file_content" in data:
-            self.file_package = data
-        else:
-            display("That doesn't seem to be a valid datadump / datadump file")
-        
+        if data:
+            if isinstance(data, dict) and "file_info" in data and "file_content" in data:
+                self.file_package = data
+            else:
+                display("That doesn't seem to be a valid datadump / datadump file")
+
     def set_code_content(self, value, split=""):
         self.multiline = split
+        self.code_content = ""
         self.code_content = value
 
     def create_data_dump(self):
