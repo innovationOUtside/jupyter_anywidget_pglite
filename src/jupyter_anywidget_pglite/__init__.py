@@ -7,6 +7,10 @@ import anywidget
 import traitlets
 import sys
 
+import base64
+import os
+from pathlib import Path
+
 from IPython.display import display
 
 
@@ -20,6 +24,38 @@ try:
 except importlib.metadata.PackageNotFoundError:
     __version__ = "unknown"
 
+def load_datadump_from_file(file_path):
+
+    # Open the file and read its content
+    with open(file_path, "rb") as f:
+        file_content = f.read()
+
+    if file_path.endswith(".tar.gz") or file_path.endswith(".tgz"):
+        file_type = "application/x-gzip"
+    else:
+        file_type = "application/octet-stream"
+
+    # Get the file metadata
+    file_info = {
+        "name": os.path.basename(file_path),
+        "size": os.path.getsize(file_path),
+        "type": file_type,
+        "lastModified": int(
+            os.path.getmtime(file_path) * 1000
+        ),  # Convert to milliseconds like JS
+    }
+
+    # Encode the file content as base64 (if you need to serialize it as a string)
+    file_content_encoded = base64.b64encode(file_content).decode("utf-8")
+
+    # Recreate the file_package dictionary
+    file_package = {
+        "file_info": file_info,
+        "file_content": file_content_encoded,  # If you need to send it as a string, use base64
+    }
+
+    return file_package
+
 
 class postgresWidget(anywidget.AnyWidget):
     _css = pathlib.Path(__file__).parent / "static" / "postgres.css"
@@ -30,18 +66,36 @@ class postgresWidget(anywidget.AnyWidget):
     headless = traitlets.Bool(False).tag(sync=True)
     multiline = traitlets.Unicode("").tag(sync=True)
     multiexec = traitlets.Bool(False).tag(sync=True)
+    datadump = traitlets.Unicode("").tag(sync=True)
+    tarball = traitlets.Bytes(b'').tag(sync=True)
     idb = traitlets.Unicode("").tag(sync=True)
-
-    def __init__(self, headless=False, idb="", **kwargs):
+    file_package = traitlets.Dict().tag(sync=True)
+    # file_info = traitlets.Dict().tag(sync=True)
+    # file_content = traitlets.Unicode().tag(sync=True)
+    def __init__(self, headless=False, idb="", data=None, **kwargs):
         super().__init__(**kwargs)
         self.headless = headless
         self.idb = ""
         if idb:
             self.idb = idb if idb.startswith("idb://") else f"idb://{idb}"
-
+        self.file_package = {}
+        if isinstance(data, (str, Path)):
+            p = Path(data)
+            if p.exists() and p.is_file():
+                data = load_datadump_from_file(data)
+        # Could have more checks here about data validity
+        if data and isinstance(data, dict) and "file_info" in data and "file_content" in data:
+            self.file_package = data
+        else:
+            display("That doesn't seem to be a valid datadump / datadump file")
+        
     def set_code_content(self, value, split=""):
         self.multiline = split
         self.code_content = value
+
+    def create_data_dump(self):
+        self.datadump = ""
+        self.datadump = "generate_dump"
 
     def df(self):
         response = self.response["response"]["rows"]
@@ -51,19 +105,46 @@ class postgresWidget(anywidget.AnyWidget):
         display("pandas not available...")
         return response
 
+    # Via ChatGPT
+    def save_datadump_to_file(self, filename=""):
+        d = self.file_package
+        if d and "file_info" in d and "file_content" in d:
+            # Extract the file info
+            file_info = d["file_info"]
+            file_name = filename if filename else file_info["name"]
+            file_size = file_info["size"]
+            file_type = file_info["type"]
+            file_content = d["file_content"]
+
+            # Decode the file content if it's base64-encoded
+            try:
+                file_data = base64.b64decode(file_content)
+            except Exception:
+                file_data = file_content  # If it's already binary data
+
+            display(f"Saving as {file_name}")
+            # Write the content to a file
+            with open(file_name, "wb") as f:
+                f.write(file_data)
+
+            return file_name
+
+
 from .magics import PGliteMagic
 
 def load_ipython_extension(ipython):
     ipython.register_magics(PGliteMagic)
 
 
-def pglite_headless(idb=""):
-    widget_ = postgresWidget(headless=True, idb=idb)
+def pglite_headless(idb="", data=None):
+    data = data if data else {}
+    widget_ = postgresWidget(headless=True, idb=idb, data=data)
     display(widget_)
     return widget_
 
-def pglite_inline(idb=""):
-    widget_ = postgresWidget(idb=idb)
+def pglite_inline(idb="", data=None):
+    data = data if data else {}
+    widget_ = postgresWidget(idb=idb, data=data)
     display(widget_)
     return widget_
 
@@ -74,15 +155,17 @@ from functools import wraps
 # First parameter on decorated function is optional title
 # Second parameter on decorated function is optional anchor location
 # Via Claude.ai
-def create_panel(widget_class):
+
+
+def create_panel(func):
     from sidecar import Sidecar
 
-    @wraps(widget_class)
-    def wrapper(title=None, anchor="split-right", idb=""):
+    @wraps(func)
+    def wrapper(title=None, anchor="split-right", *args, **kwargs):
         if title is None:
-            title = f"{widget_class.__name__[:-6]} Output"  # Assuming widget classes end with 'Widget'
+            title = f"{func.__name__[:-6]} Output"  # Assuming function names end with '_panel'
 
-        widget_ = widget_class()
+        widget_ = func(*args, **kwargs)
         widget_.sc = Sidecar(title=title, anchor=anchor)
 
         with widget_.sc:
@@ -95,13 +178,11 @@ def create_panel(widget_class):
         widget_.close = close
 
         return widget_
-        # We can then close the panel as sc.
 
     return wrapper
 
 
-# Launch with custom title as: pglite_panel("PGlite")
-# Use second parameter for anchor
 @create_panel
-def pglite_panel(title=None, anchor=None, idb=""):
-    return postgresWidget(idb=idb)
+def pglite_panel(idb="", data=None, **kwargs):
+    data = data if data else {}
+    return postgresWidget(idb=idb, data=data, **kwargs)

@@ -10,8 +10,9 @@ import { PGlite } from "https://cdn.jsdelivr.net/npm/@electric-sql/pglite/dist/i
 //import PGlite from "https://cdn.jsdelivr.net/npm/@electric-sql/pglite@0.1.5/+esm";
 
 interface WidgetModel {
+  datadump: string;
   code_content: string;
-  response: {};
+  response: any;
 }
 
 const DEFAULT_SQL = `
@@ -58,10 +59,45 @@ function formatRows(result: Response, table: HTMLTableElement): void {
   });
 }
 
+// Via claude.ai
+function createFileObj(file_package) {
+  if (
+    file_package &&
+    file_package.file_content &&
+    file_package.file_info
+  ) {
+    const { file_content, file_info } = file_package;
+
+    const byteCharacters = atob(file_content);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    const byteArray = new Uint8Array(byteNumbers);
+
+    // Create a Blob first
+    const blob = new Blob([byteArray], { type: file_info.type });
+
+    // Create a File from the Blob
+    const file = new File([blob], file_info.name, {
+      type: file_info.type,
+      lastModified: file_info.lastModified,
+    });
+
+    return file;
+  }
+  return null;
+}
+
 function render({ model, el }: RenderContext<WidgetModel>) {
   // Initialize PGlite
   const idb = model.get("idb");
-  const db = idb ? new PGlite(idb) : new PGlite();
+  const file_data = model.get("file_package");
+  const data = createFileObj(file_data);
+  const options = {} as any;
+  if (data) options.loadDataDir = data;
+
+  const db = idb ? new PGlite(idb, options) : new PGlite(options);
   const _headless = model.get("headless");
 
   if (!_headless) {
@@ -73,6 +109,34 @@ function render({ model, el }: RenderContext<WidgetModel>) {
   }
 
   //const runButton = el.querySelector('button[name="run-button"]');
+
+  model.on("change:datadump", async () => {
+    const datadump = model.get("datadump");
+    if (datadump == "generate_dump") {
+      let dumpfile = await db.dumpDataDir();
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        // Update file_info with serializable data
+        const file_info = {
+          name: dumpfile.name,
+          size: dumpfile.size,
+          type: dumpfile.type,
+          lastModified: dumpfile.lastModified,
+        };
+
+        const file_content = e.target.result.split(",")[1]; // Get base64 part
+
+        const file_package = {
+          file_info: file_info,
+          file_content: file_content,
+        };
+
+        model.set("file_package", file_package);
+        model.save_changes();
+      };
+      reader.readAsDataURL(dumpfile);
+    }
+  });
 
   model.on("change:code_content", async () => {
     function queryDisplay(q) {
