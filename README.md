@@ -100,7 +100,7 @@ Optionally provide a timeout period (seconds):
 
 We can also use a blocking trick to return a response from the magic cell *(not JupyterLite)*. Set `-r / --response` flag when calling the magic. Optionally set the `-t / --timeout` to the timeout period in seconds (default 5s; if the timeout is explicitly set, `-r` is assumed): `%%pglite -r`, `%pglite -t 10`
 
-![Example showing use of pg.ready() and magic -r response flag ]](images/blocking_functions.png)
+![Example showing use of pg.ready() and magic -r response flag ](images/blocking_functions.png)
 
 *Note: I think that IPython notebook cells should have cell run IDs cleared prior to running. I have seen errors if there are non-unique cell run IDs for the blocking cell.*
 
