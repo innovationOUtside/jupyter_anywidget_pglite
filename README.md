@@ -35,6 +35,8 @@ pg = pglite_panel()
 #pg = pglite_inline()
 ```
 
+Use `pg.ready()` / `pg.ready(timeout=TIME_IN_S)` function that will block until the `pglite` widget is loaded and ready to accept requests *(not JupyterLite)*.
+
 ## Persisting data in browser storage
 
 To persist the database in browser storage, set the `idb='DBNAME`` parameter when creating a widget. For example:
@@ -69,8 +71,12 @@ SELECT * FROM test;
 
 To run multiple SQL statements in the same cell:
 
-- use the `-m / --multiple-statements` flag (default: `False`) when calling the cell block magic. This will naively split the query on each `;` character, and then run each split item as a separate command. The response will be set to the response from the final query;
+- use the `-m / --multiple-statements` flag (default: `False`) when calling the cell block magic [NOT RECOMMENDED]. This will naively split the query on each `;` character, and then run each split item as a separate command. The response will be set to the response from the final query;
 - use the `-M / --multiple-statement-block` flag to run all the tems using the `pglite` `.exec()` command.
+
+We can also run queries (with the same arguments) using the `%pglite_query` line magic, with the query set via the `-q / --query` parameter:
+
+`%pglite_query -r -q 'SELECT * FROM test LIMIT 1;'`
 
 Having made a query onto the database via a magic cell, we can retrieve the response:
 
@@ -81,6 +87,22 @@ pg.response
 If `pandas` is installed, we can get rows returned from a query response as a dataframe:
 
 `pg.df()`
+
+Note that the `pglite` query runs asynchronously, so how do we know on the pyhton side when the repsonse is ready?
+
+Using the [`jupyter_ui_poll`](https://github.com/kirill888/jupyter-ui-poll) package (*not* JupyterLite), we can run a blocking wait on a response from `pglite` *(not JupyterLite)*:
+
+`response = pg.blocking_reply()`
+
+Optionally provide a timeout period (seconds):
+
+`response = pg.blocking_reply(timeout=5)`
+
+We can also use a blocking trick to return a response from the magic cell *(not JupyterLite)*. Set `-r / --response` flag when calling the magic. Optionally set the `-t / --timeout` to the timeout period in seconds (default 5s; if the timeout is explicitly set, `-r` is assumed): `%%pglite -r`, `%pglite -t 10`
+
+![Example showing use of pg.ready() and magic -r response flag ]](images/blocking_functions.png)
+
+*Note: I think that IPython notebook cells should have cell run IDs cleared prior to running. I have seen errors if there are non-unique cell run IDs for the blocking cell.*
 
 ## Exporting data to file / reloading from file
 
@@ -133,21 +155,7 @@ To provide an audible alert when a query or a data dump generation operation has
 
 ## Blocking Reply (*not* JupyterLite)
 
-Using the [`jupyter_ui_poll`](https://github.com/kirill888/jupyter-ui-poll) package (*not* JupyterLite), we can run a blocking wait on a response from `pglite`:
 
-`response = pg.blocking_reply()`
-
-Optionally provide a timeout period (seconds):
-
-`response = pg.blocking_reply(timeout=5)`
-
-We can use this internally to define a `pg.ready()` / `pg.ready(timeout=TIME_IN_S)` function that will block until the `pglite` widget is loaded and ready to accept requests.
-
-We can also use it internally to let us generate a response from the magic cell. Set `-r / --response` flag when calling the magic. Optionally set the `-t / --timeout` to the timeout period in seconds (default 5s; if the timeout is explicitly set, `-r` is assumed): `%%pglite -r`, `%pglite -t 10`
-
-![Example showing use of pg.ready() and magic -r response flag ]](images/blocking_functions.png)
-
-*Note: I think that IPython notebook cells should have cell run IDs cleared prior to running. I have seen errors if there are non-unique cell run IDs for the blocking cell.*
 
 ## TO DO
 
