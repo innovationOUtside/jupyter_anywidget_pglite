@@ -63,11 +63,7 @@ function formatRows(result: Response, table: HTMLTableElement): void {
 
 // Via claude.ai
 function createFileObj(file_package) {
-  if (
-    file_package &&
-    file_package.file_content &&
-    file_package.file_info
-  ) {
+  if (file_package && file_package.file_content && file_package.file_info) {
     const { file_content, file_info } = file_package;
 
     const byteCharacters = atob(file_content);
@@ -165,7 +161,7 @@ function render({ model, el }: RenderContext<WidgetModel>) {
     }
 
     const sql = model.get("code_content");
-    if (!sql) return
+    if (!sql) return;
 
     const multiline = model.get("multiline");
     const multiexec = model.get("multiexec");
@@ -180,11 +176,12 @@ function render({ model, el }: RenderContext<WidgetModel>) {
     };
     if (multiexec) {
       queryDisplay(sql);
-      
+
       let multi_response = await db.exec(sql);
       // for now, just display the final item
       resultDisplay(multi_response[multi_response.length - 1]);
       model.set("response", {
+        status: "completed",
         response: multi_response,
         response_type: "multi",
       });
@@ -199,24 +196,34 @@ function render({ model, el }: RenderContext<WidgetModel>) {
           resultDisplay(response);
         }
       }
-      model.set("response", { response: response, response_type: "single" });
+      model.set("response", {
+        status: "completed",
+        response: response,
+        response_type: "single",
+      });
     } else {
       queryDisplay(sql);
       response = await db.query(sql);
       resultDisplay(response);
-      model.set("response", { response: response, response_type: "single" });
+      model.set("response", {
+        status: "completed",
+        response: response,
+        response_type: "single",
+      });
     }
 
     model.save_changes();
     if (model.get("audio")) play_success();
   });
+
+  model.set("response", {
+    status: "ready",
+  });
+  model.save_changes();
 }
-
-
 
 //---
 
 //---------
-
 
 export default { render };

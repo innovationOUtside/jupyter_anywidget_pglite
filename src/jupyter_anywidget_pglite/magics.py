@@ -37,7 +37,9 @@ class PGliteMagic(Magics):
         "--multiple-statement-block",
         action="store_true",
         help="Use exec to execute multiple statements",
-    )  # Boolean flag
+    )
+    @argument("-r", "--response", action="store_true", help="Provide response from cell (not JupyterLite)")
+    @argument("-t", "--timeout", type=float, default=0, help="timeout period on blocking response (default: 5)")
     def pglite_magic(self, line, cell):
         args = parse_argstring(self.pglite_magic, line)
         if args.widget_name:
@@ -53,8 +55,10 @@ class PGliteMagic(Magics):
             w = self.widget
             w.multiexec = args.multiple_statement_block
             w.set_code_content(cell, split=splitter)
-            # The w.response is the previous state so we can't return it
-
+            autorespond = bool(args.timeout or args.response)
+            if autorespond:
+                timeout = args.timeout if args.timeout > 0 else 5
+                return w.blocking_reply(timeout)
 ## %load_ext jupyter_anywidget_pglite
 ## Usage: %%pglite_magic x [where x is the widget object ]
 

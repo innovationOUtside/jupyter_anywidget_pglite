@@ -125,6 +125,24 @@ Or create a new widget with the `pglite` database seeded from the file:
 
 To provide an audible alert when a query or a data dump generation operation has completed, set: `pg.audio = True`,
 
+## Blocking Reply (*not* JupyterLite)
+
+Using the [`jupyter_ui_poll`](https://github.com/kirill888/jupyter-ui-poll) package (*not* JupyterLite), we can run a blocking wait on a response from `pglite`:
+
+`response = pg.blocking_reply()`
+
+Optionally provide a timeout period (seconds):
+
+`response = pg.blocking_reply(timeout=5)`
+
+We can use this internally to define a `pg.ready()` / `pg.ready(timeout=TIME_IN_S)` function that will block until the `pglite` widget is loaded and ready to accept requests.
+
+We can also use it internally to let us generate a response from the magic cell. Set `-r / --response` flag when calling the magic. Optionally set the `-t / --timeout` to the timeout period in seconds (default 5s; if the timeout is explicitly set, `-r` is assumed): `%%pglite -r`, `%pglite -t 10`
+
+![Example showing use of pg.ready() and magic -r response flag ]](images/blocking_functions.png)
+
+*Note: I think that IPython notebook cells should have cell run IDs cleared prior to running. I have seen errors if there are non-unique cell run IDs for the blocking cell.*
+
 ## TO DO
 
 - options to display outputs in the panel;

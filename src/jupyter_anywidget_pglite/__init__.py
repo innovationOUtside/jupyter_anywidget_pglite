@@ -10,9 +10,14 @@ import sys
 import base64
 import os
 from pathlib import Path
+import time
 
 from IPython.display import display
 
+try:
+    from jupyter_ui_poll import ui_events
+except:
+    pass
 
 try:
     import pandas as pd
@@ -23,6 +28,7 @@ try:
     __version__ = importlib.metadata.version("jupyter_anywidget_pglite")
 except importlib.metadata.PackageNotFoundError:
     __version__ = "unknown"
+
 
 def load_datadump_from_file(file_path):
 
@@ -67,14 +73,16 @@ class postgresWidget(anywidget.AnyWidget):
     multiline = traitlets.Unicode("").tag(sync=True)
     multiexec = traitlets.Bool(False).tag(sync=True)
     datadump = traitlets.Unicode("").tag(sync=True)
-    tarball = traitlets.Bytes(b'').tag(sync=True)
+    tarball = traitlets.Bytes(b"").tag(sync=True)
     idb = traitlets.Unicode("").tag(sync=True)
     file_package = traitlets.Dict().tag(sync=True)
     audio = traitlets.Bool(False).tag(sync=True)
+
     # file_info = traitlets.Dict().tag(sync=True)
     # file_content = traitlets.Unicode().tag(sync=True)
     def __init__(self, headless=False, idb="", data=None, **kwargs):
         super().__init__(**kwargs)
+        self.response = {"status": "initialising"}
         self.headless = headless
         self.idb = ""
         if idb:
@@ -86,15 +94,40 @@ class postgresWidget(anywidget.AnyWidget):
                 data = load_datadump_from_file(data)
         # Could have more checks here about data validity
         if data:
-            if isinstance(data, dict) and "file_info" in data and "file_content" in data:
+            if (
+                isinstance(data, dict)
+                and "file_info" in data
+                and "file_content" in data
+            ):
                 self.file_package = data
             else:
                 display("That doesn't seem to be a valid datadump / datadump file")
 
+    def _wait(self, timeout, conditions=("status", "completed")):
+        start_time = time.time()
+        with ui_events() as ui_poll:
+            while self.response[conditions[0]] != conditions[1]:
+                ui_poll(10)
+                if timeout and time.time() - start_time > timeout:
+                    raise TimeoutError(
+                        "Action not completed within the specified timeout."
+                    )
+                time.sleep(0.1)
+        return
+
+    def ready(self, timeout=5):
+        self._wait(timeout, ("status", "ready"))
+
     def set_code_content(self, value, split=""):
         self.multiline = split
+        self.response = {"status": "processing"}
         self.code_content = ""
         self.code_content = value
+
+    # Need to guard this out in JupyterLite (definitely in pyodide)
+    def blocking_reply(self, timeout=None):
+        self._wait(timeout)
+        return self.response
 
     def create_data_dump(self):
         self.datadump = ""
@@ -135,6 +168,7 @@ class postgresWidget(anywidget.AnyWidget):
 
 from .magics import PGliteMagic
 
+
 def load_ipython_extension(ipython):
     ipython.register_magics(PGliteMagic)
 
@@ -145,11 +179,13 @@ def pglite_headless(idb="", data=None):
     display(widget_)
     return widget_
 
+
 def pglite_inline(idb="", data=None):
     data = data if data else {}
     widget_ = postgresWidget(idb=idb, data=data)
     display(widget_)
     return widget_
+
 
 from functools import wraps
 
