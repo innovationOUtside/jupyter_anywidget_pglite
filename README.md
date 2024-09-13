@@ -153,10 +153,6 @@ Or create a new widget with the `pglite` database seeded from the file:
 
 To provide an audible alert when a query or a data dump generation operation has completed, set: `pg.audio = True`,
 
-## Blocking Reply (*not* JupyterLite)
-
-
-
 ## TO DO
 
 - options to display outputs in the panel;
