@@ -6,6 +6,7 @@ import pathlib
 import anywidget
 import traitlets
 import sys
+import warnings
 
 import base64
 import os
@@ -17,7 +18,10 @@ from IPython.display import display
 try:
     from jupyter_ui_poll import ui_events
 except:
-    pass
+    warnings.warn(
+        "You must install jupyter_ui_poll if you want to return cell responses / blocking waits (not JupyerLite); install necessary packages then restart the notebook kernel:%pip install jupyter_ui_poll",
+        UserWarning,
+    )
 
 try:
     import pandas as pd
