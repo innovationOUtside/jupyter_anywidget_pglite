@@ -130,6 +130,7 @@ function render({ model, el }: RenderContext<WidgetModel>) {
         };
 
         model.set("file_package", file_package);
+        model.set("response", { status: "datadump_ready" });
         model.save_changes();
         if (model.get("audio")) play_success();
       };

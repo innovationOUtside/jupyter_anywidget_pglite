@@ -129,9 +129,12 @@ class postgresWidget(anywidget.AnyWidget):
         self._wait(timeout)
         return self.response
 
-    def create_data_dump(self):
+    def create_data_dump(self, wait=False, timeout=None):
         self.datadump = ""
         self.datadump = "generate_dump"
+        self.response = {"status": "generating_datadump"}
+        if wait or timeout:
+            self._wait(timeout, ("status", "datadump_ready"))
 
     def df(self):
         response = self.response["response"]["rows"]

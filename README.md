@@ -84,9 +84,15 @@ If `pandas` is installed, we can get rows returned from a query response as a da
 
 ## Exporting data to file / reloading from file
 
+Save and load data to / from a file.
+
+![example of creating a datadump , saving it to a file, and seeding a widget from it](images/datadump-handling.png)
+
 We can get an export of the data using the `pglite` data exporter ([`.dumpdatadir()`](https://github.com/electric-sql/pglite/blob/main/docs/docs/api.md#dumpdatadir)) in the database by calling:
 
 `pg.create_data_dump()`
+
+For a blocking wait until the datadump is read, use `pg.create_data_dump(True)` or `pg.create_data_dump(wait=True)` (not JupyterLite). You can also pass a `timeout` parameter in seconds (`wait=True` is assumed if the timeout parameter is explicitly set).
 
 After a moment or two, the data will appear in a dictionary on: `pg.file_package`
 
