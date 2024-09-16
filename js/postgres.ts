@@ -140,10 +140,14 @@ function render({ model, el }: RenderContext<WidgetModel>) {
 
   model.on("change:code_content", async () => {
     function queryDisplay(q) {
+      if (_headless) return;
+
       const codeEditor = el.querySelector('div[title="code-editor"]');
       codeEditor.innerHTML = codeEditor.innerHTML + "<br>" + q;
     }
     function resultDisplay(response) {
+      if (_headless) return;
+
       const output = el.querySelector('div[title="output"]');
       const results = el.querySelector('div[title="results"]');
 
@@ -155,10 +159,10 @@ function render({ model, el }: RenderContext<WidgetModel>) {
     }
 
     function fullDisplay(q, r) {
-      if (!_headless) {
-        queryDisplay(q);
-        resultDisplay(r);
-      }
+      if (_headless) return;
+
+      queryDisplay(q);
+      resultDisplay(r);
     }
 
     const sql = model.get("code_content");
