@@ -88,7 +88,7 @@ If `pandas` is installed, we can get rows returned from a query response as a da
 
 `pg.df()`
 
-Note that the `pglite` query runs asynchronously, so how do we know on the pyhton side when the repsonse is ready?
+Note that the `pglite` query runs asynchronously, so how do we know on the Python side when the repsonse is ready?
 
 Using the [`jupyter_ui_poll`](https://github.com/kirill888/jupyter-ui-poll) package (*not* JupyterLite), we can run a blocking wait on a response from `pglite` *(not JupyterLite)*:
 

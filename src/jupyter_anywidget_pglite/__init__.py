@@ -204,7 +204,13 @@ from functools import wraps
 
 
 def create_panel(func):
-    from sidecar import Sidecar
+    try:
+        from sidecar import Sidecar
+    except:
+        warnings.warn(
+            "Missing package (sidecar): run `pip install sidecar` before trying to access the panel.",
+            UserWarning,
+        )
 
     @wraps(func)
     def wrapper(title=None, anchor="split-right", *args, **kwargs):

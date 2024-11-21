@@ -1,4 +1,14 @@
  
+.pg-status-active {
+  background-color: green;
+  color: white;
+}
+
+.pg-status-inactive {
+  background-color: gray;
+  color: black;
+}
+
 .pglite-app-container {margin-left:5px;}
 
 .pglite-app-container #pglite-timestamp {
