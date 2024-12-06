@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "jupyter_anywidget_pglite"
-version = "0.1.8"
+version = "0.1.9"
 dependencies = ["anywidget"]
 readme = "README.md"
 authors = [
@@ -12,7 +12,8 @@ authors = [
 ]
 
 [project.urls]
-repository = "https://github.com/innovationOUtside/jupyter_anywidget_pglite"
+Repository = "https://github.com/innovationOUtside/jupyter_anywidget_pglite"
+Homepage="https://github.com/innovationOUtside/jupyter_anywidget_pglite"
 
 [project.license]
 text = "MIT License"

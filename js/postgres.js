@@ -1,21 +1,9 @@
 import "./postgres.css";
 import html from "./postgres.html";
-//import * as MONACO_VS from "monaco-editor";
-import type { RenderContext } from "@anywidget/types";
-import { generateUUID } from "./uuid";
 //import { PGlite } from "@electric-sql/pglite";
-//import * as PGlite from "https://esm.sh/@electric-sql/pglite";
-//import PGlite from "https://cdn.jsdelivr.net/npm/@electric-sql/pglite/dist/pglite.min.js";
 import { PGlite } from "https://cdn.jsdelivr.net/npm/@electric-sql/pglite/dist/index.js";
-//import PGlite from "https://cdn.jsdelivr.net/npm/@electric-sql/pglite@0.1.5/+esm";
-
-import { play_success } from "./audio";
-
-interface WidgetModel {
-  datadump: string;
-  code_content: string;
-  response: any;
-}
+import { generateUUID } from "./uuid";
+import { play_success, play_error } from "./audio";
 
 const DEFAULT_SQL = `
 -- Optionally select statements to execute.
@@ -29,10 +17,7 @@ INSERT INTO test (title) values ('dummy');
 
 `.trim();
 
-function formatTable(result: {
-  rows: any[];
-  fields: { name: string; dataTypeID: number }[];
-}): HTMLTableElement {
+function formatTable(result) {
   const table = document.createElement("table");
 
   const headerRow = table.insertRow();
@@ -43,15 +28,8 @@ function formatTable(result: {
   });
   return table;
 }
-interface Response {
-  rows: any[]; // Array of any type
-  fields: {
-    name: string;
-    dataTypeID: number;
-  }[];
-}
 
-function formatRows(result: Response, table: HTMLTableElement): void {
+function formatRows(result, table) {
   result.rows.forEach((row) => {
     const tr = table.insertRow();
     result.fields.forEach((field) => {
@@ -61,7 +39,6 @@ function formatRows(result: Response, table: HTMLTableElement): void {
   });
 }
 
-// Via claude.ai
 function createFileObj(file_package) {
   if (file_package && file_package.file_content && file_package.file_info) {
     const { file_content, file_info } = file_package;
@@ -73,10 +50,8 @@ function createFileObj(file_package) {
     }
     const byteArray = new Uint8Array(byteNumbers);
 
-    // Create a Blob first
     const blob = new Blob([byteArray], { type: file_info.type });
 
-    // Create a File from the Blob
     const file = new File([blob], file_info.name, {
       type: file_info.type,
       lastModified: file_info.lastModified,
@@ -87,26 +62,27 @@ function createFileObj(file_package) {
   return null;
 }
 
-function render({ model, el }: RenderContext<WidgetModel>) {
-  // Initialize PGlite
+function render({ model, el }) {
   const idb = model.get("idb");
   const file_data = model.get("file_package");
   const data = createFileObj(file_data);
-  const options = {} as any;
+  const options = {};
   if (data) options.loadDataDir = data;
 
+  //const db = new PGlite();
   const db = idb ? new PGlite(idb, options) : new PGlite(options);
   const _headless = model.get("headless");
 
-  if (!_headless) {
-    let el2 = document.createElement("div");
-    el2.innerHTML = html;
-    const uuid = generateUUID();
-    el2.id = uuid;
-    el.appendChild(el2);
+  let el2 = document.createElement("div");
+  el2.innerHTML = html;
+  const uuid = generateUUID();
+  el2.id = uuid;
+
+  if (_headless) {
+    el2.style = "display: none; visibility: hidden;";
   }
 
-  //const runButton = el.querySelector('button[name="run-button"]');
+  el.appendChild(el2);
 
   model.on("change:datadump", async () => {
     const datadump = model.get("datadump");
@@ -114,7 +90,6 @@ function render({ model, el }: RenderContext<WidgetModel>) {
       let dumpfile = await db.dumpDataDir();
       const reader = new FileReader();
       reader.onload = (e) => {
-        // Update file_info with serializable data
         const file_info = {
           name: dumpfile.name,
           size: dumpfile.size,
@@ -122,7 +97,7 @@ function render({ model, el }: RenderContext<WidgetModel>) {
           lastModified: dumpfile.lastModified,
         };
 
-        const file_content = e.target.result.split(",")[1]; // Get base64 part
+        const file_content = e.target.result.split(",")[1];
 
         const file_package = {
           file_info: file_info,
@@ -145,6 +120,7 @@ function render({ model, el }: RenderContext<WidgetModel>) {
       const codeEditor = el.querySelector('div[title="code-editor"]');
       codeEditor.innerHTML = codeEditor.innerHTML + "<br>" + q;
     }
+
     function resultDisplay(response) {
       if (_headless) return;
 
@@ -165,40 +141,50 @@ function render({ model, el }: RenderContext<WidgetModel>) {
       resultDisplay(r);
     }
 
+    function handle_error(error) {
+      if (model.get("audio")) play_error(error.message);
+      model.set("response", {
+        status: "error",
+        error_message: error.message,
+      });
+    }
+
     const sql = model.get("code_content");
     if (!sql) return;
 
     const multiline = model.get("multiline");
     const multiexec = model.get("multiexec");
-    let response: Response = {
-      rows: [], // Initialize empty array
-      fields: [
-        {
-          name: "", // Initialize empty string
-          dataTypeID: 0, // Initialize to some default number
-        },
-      ],
+    let response = {
+      rows: [],
+      fields: [{ name: "", dataTypeID: 0 }],
     };
-    if (multiexec) {
-      queryDisplay(sql);
 
-      let multi_response = await db.exec(sql);
-      // for now, just display the final item
-      resultDisplay(multi_response[multi_response.length - 1]);
-      model.set("response", {
-        status: "completed",
-        response: multi_response,
-        response_type: "multi",
-      });
+    if (multiexec) {
+      try {
+        queryDisplay(sql);
+        let multi_response = await db.exec(sql);
+        resultDisplay(multi_response[multi_response.length - 1]);
+        model.set("response", {
+          status: "completed",
+          response: multi_response,
+          response_type: "multi",
+        });
+      } catch (error) {
+        handle_error(error);
+      }
     } else if (multiline != "") {
-      const items = sql.split(multiline); // Splits the string into an array
+      const items = sql.split(multiline);
 
       for (const item of items) {
         const q = item.trim();
         if (q !== "") {
           queryDisplay(`${q};`);
-          response = await db.query(q);
-          resultDisplay(response);
+          try {
+            response = await db.query(q);
+            resultDisplay(response);
+          } catch (error) {
+            handle_error(error);
+          }
         }
       }
       model.set("response", {
@@ -208,27 +194,36 @@ function render({ model, el }: RenderContext<WidgetModel>) {
       });
     } else {
       queryDisplay(sql);
-      response = await db.query(sql);
-      resultDisplay(response);
-      model.set("response", {
-        status: "completed",
-        response: response,
-        response_type: "single",
-      });
+      try {
+        response = await db.query(sql);
+        resultDisplay(response);
+        model.set("response", {
+          status: "completed",
+          response: response,
+          response_type: "single",
+        });
+      } catch (error) {
+        handle_error(error);
+      }
     }
 
     model.save_changes();
     if (model.get("audio")) play_success();
   });
 
-  model.set("response", {
-    status: "ready",
-  });
-  model.save_changes();
+  let db_version;
+  db.query("select version();")
+    .then((result) => {
+      db_version = result["rows"][0]; // Assign the result to the outer variable
+      //console.log("DB Version:", db_version);
+      model.set("about", db_version);
+      model.set("response", { status: "ready" });
+      model.save_changes();
+    })
+    .catch((err) => {
+      alert(err);
+      console.error("Error executing query:", err);
+    });
 }
-
-//---
-
-//---------
 
 export default { render };

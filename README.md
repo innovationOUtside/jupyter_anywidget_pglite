@@ -47,10 +47,10 @@ To persist the database in browser storage, set the `idb='DBNAME`` parameter whe
 
 To run a query, place the query insde a `%%pglite` cell block magic.
 
-- use the `-w / --widget-name` setting to set the widget within the magic and it does not need to be passed again (for example, `%%pglite -w pg`)
+- use the `-w / --widget-name` setting to set the widget within the magic and it does not need to be passed again (for example, `%%pglite_magic -w pg`)
 - alternatively, prior to calling the block magic, set the widget used in the magic via a line magic: `%setwidget pg`
 
-Running queries on the database using IPython cell block magic `%%pglite WIDGET_VARIABLE`:
+Running queries on the database using IPython cell block magic `%%pglite -w WIDGET_VARIABLE`:
 
 ```python
 %%pglite_magic -w pg
@@ -78,6 +78,8 @@ We can also run queries (with the same arguments) using the `%pglite_query` line
 
 `%pglite_query -r -q 'SELECT * FROM test LIMIT 1;'`
 
+As if we add the `-d` flag, this will return the query result as a dataframe.
+
 Having made a query onto the database via a magic cell, we can retrieve the response:
 
 ```python
@@ -88,7 +90,7 @@ If `pandas` is installed, we can get rows returned from a query response as a da
 
 `pg.df()`
 
-Note that the `pglite` query runs asynchronously, so how do we know on the Python side when the repsonse is ready?
+Note that the `pglite` query runs asynchronously, so how do we know on the Python side when the response is ready?
 
 Using the [`jupyter_ui_poll`](https://github.com/kirill888/jupyter-ui-poll) package (*not* JupyterLite), we can run a blocking wait on a response from `pglite` *(not JupyterLite)*:
 
@@ -103,6 +105,12 @@ We can also use a blocking trick to return a response from the magic cell *(not 
 ![Example showing use of pg.ready() and magic -r response flag ](images/blocking_functions.png)
 
 *Note: I think that IPython notebook cells should have cell run IDs cleared prior to running. I have seen errors if there are non-unique cell run IDs for the blocking cell.*
+
+## Add the contents of a dataframe to the database
+
+If we have a table already defined on the database, and a dataframe that confoms to it, we can add the data in the dataframe to the table as follows:
+
+`%pglite_df_insert -d df -t my_table`
 
 ## Exporting data to file / reloading from file
 

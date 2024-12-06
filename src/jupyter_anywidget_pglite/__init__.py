@@ -19,8 +19,7 @@ try:
     from jupyter_ui_poll import ui_events
 except:
     warnings.warn(
-        "You must install jupyter_ui_poll if you want to return cell responses / blocking waits (not JupyerLite); install necessary packages then restart the notebook kernel:%pip install jupyter_ui_poll",
-        UserWarning,
+        "You must install jupyter_ui_poll if you want to return cell responses / blocking waits (not JupyerLite); install necessary packages then restart the notebook kernel:%pip install jupyter_ui_poll"
     )
 
 try:
@@ -71,6 +70,7 @@ class postgresWidget(anywidget.AnyWidget):
     _css = pathlib.Path(__file__).parent / "static" / "postgres.css"
     _esm = pathlib.Path(__file__).parent / "static" / "postgres.js"
     # Create a traitlet for the code content
+    about = traitlets.Dict().tag(sync=True)
     code_content = traitlets.Unicode("").tag(sync=True)
     response = traitlets.Dict().tag(sync=True)
     headless = traitlets.Bool(False).tag(sync=True)
@@ -110,7 +110,9 @@ class postgresWidget(anywidget.AnyWidget):
     def _wait(self, timeout, conditions=("status", "completed")):
         start_time = time.time()
         with ui_events() as ui_poll:
-            while self.response[conditions[0]] != conditions[1]:
+            while (self.response[conditions[0]] != conditions[1]) & (
+                self.response["status"] != "error"
+            ):
                 ui_poll(10)
                 if timeout and time.time() - start_time > timeout:
                     raise TimeoutError(
@@ -141,9 +143,15 @@ class postgresWidget(anywidget.AnyWidget):
             self._wait(timeout, ("status", "datadump_ready"))
 
     def df(self):
-        response = self.response["response"]["rows"]
+        response = self.response["response"]
         if "pandas" in sys.modules:
-            _df = pd.DataFrame.from_records(response, index="id")
+            # Extracting column names from the 'fields' list
+            columns = [field['name'] for field in response['fields']]
+            # TO DO: types are also available if we have a lookup table...
+            # Get the data rows
+            data = self.response["response"]["rows"]
+            # Create the dataframe
+            _df = pd.DataFrame.from_records(data, columns=columns, index="id")
             return _df
         display("pandas not available...")
         return response
@@ -208,9 +216,7 @@ def create_panel(func):
         from sidecar import Sidecar
     except:
         warnings.warn(
-            "Missing package (sidecar): run `pip install sidecar` before trying to access the panel.",
-            UserWarning,
-        )
+            "Missing package (sidecar): run `pip install sidecar` before trying to access the panel.")
 
     @wraps(func)
     def wrapper(title=None, anchor="split-right", *args, **kwargs):
