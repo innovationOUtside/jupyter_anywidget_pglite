@@ -31,8 +31,10 @@ class PGliteMagic(Magics):
         elif q:
             # Get the actual widget
             w = self.widget
+            describe = getattr(args, "describe", False)
             multiple_statement_block = getattr(args, "multiple_statement_block", False)
             w.multiexec = multiple_statement_block
+            w.describe = describe
             w.set_code_content(q, split=splitter)
             timeout = getattr(args, "timeout", None)
             response = getattr(args, "response", {})
@@ -80,7 +82,13 @@ class PGliteMagic(Magics):
         help="Use exec to execute multiple statements",
     )
     @argument("-q", "--query", type=str, help="SQL query")
-    @argument("-d", "--dataframe", action="store_true", help="Provide response as dataframe (not JupyterLite)")
+    @argument(
+        "-d",
+        "--dataframe",
+        action="store_true",
+        help="Provide response as data frame (not JupyterLite)",
+    )
+    @argument("-D", "--describe", action="store_true", help="Run DESCRIBE on the query.")
     def pglite_query(self, line):
         args = parse_argstring(self.pglite_query, line)
         # The query is returned as wrapped string

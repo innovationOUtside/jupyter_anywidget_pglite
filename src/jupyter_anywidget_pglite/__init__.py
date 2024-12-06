@@ -72,6 +72,7 @@ class postgresWidget(anywidget.AnyWidget):
     # Create a traitlet for the code content
     about = traitlets.Dict().tag(sync=True)
     code_content = traitlets.Unicode("").tag(sync=True)
+    describe = traitlets.Bool(False).tag(sync=True)
     response = traitlets.Dict().tag(sync=True)
     headless = traitlets.Bool(False).tag(sync=True)
     multiline = traitlets.Unicode("").tag(sync=True)

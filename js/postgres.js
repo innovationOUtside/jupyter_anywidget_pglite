@@ -195,8 +195,12 @@ function render({ model, el }) {
     } else {
       queryDisplay(sql);
       try {
-        response = await db.query(sql);
-        resultDisplay(response);
+        if (model.get("describe"))
+            response= await db.describeQuery(sql)
+        else {
+            response = await db.query(sql);
+            resultDisplay(response);
+        }
         model.set("response", {
           status: "completed",
           response: response,
@@ -224,6 +228,11 @@ function render({ model, el }) {
       alert(err);
       console.error("Error executing query:", err);
     });
+
+    return () => {
+        // Safe clean up of the database
+        db.close()
+    }
 }
 
 export default { render };
