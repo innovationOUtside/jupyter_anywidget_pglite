@@ -190,9 +190,23 @@ To provide an audible alert when a query or a data dump generation operation has
 
 If audible alerts are enabled, if an error is raised, an audible alert will sound and the error message will also be reported using the browser text-to-speech engine.
 
+## Environments
+
+`jupyter_anywidget_pglite` works in:
+
+- JupyterLab (presumably also Jupyter notebook v7(?))
+- VS Code (not the side panel)
+- JupyterLite (not the blocking parts)
+- [`marimo` notebooks](https://marimo.app/l/9mv768) (note the magics, not the side panel, (blocking not tested))
+
+![Example of usage in marimo](images/marimo_pglite_example.png)
+
+
 ## TO DO
 
 - options to display outputs in the panel;
 - button to clear input history;
 - button to reset database;
 - explore possibility of a JuptyerLab extension to load `pglite` "centrally" and then connect to the same instance from any notebook.
+- need a better py api (I've been assuming use through IPython magics)
+- make an async call for loading the db and running queries for use in JupyterLite?
