@@ -210,3 +210,4 @@ If audible alerts are enabled, if an error is raised, an audible alert will soun
 - explore possibility of a JuptyerLab extension to load `pglite` "centrally" and then connect to the same instance from any notebook.
 - need a better py api (I've been assuming use through IPython magics)
 - make an async call for loading the db and running queries for use in JupyterLite?
+- look at use of a [(multi-tab) worker](https://pglite.dev/docs/multi-tab-worker)? e.g. if we have multiple noteboooks in JupyterLab tabs, or multiple standalone notebook tabs open, each wanting their own database connection?
