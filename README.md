@@ -90,6 +90,8 @@ If `pandas` is installed, we can get rows returned from a query response as a da
 
 `pg.df()`
 
+### Blocking
+
 Note that the `pglite` query runs asynchronously, so how do we know on the Python side when the response is ready?
 
 Using the [`jupyter_ui_poll`](https://github.com/kirill888/jupyter-ui-poll) package (*not* JupyterLite), we can run a blocking wait on a response from `pglite` *(not JupyterLite)*:
@@ -105,6 +107,8 @@ We can also use a blocking trick to return a response from the magic cell *(not 
 ![Example showing use of pg.ready() and magic -r response flag ](images/blocking_functions.png)
 
 *Note: I think that IPython notebook cells should have cell run IDs cleared prior to running. I have seen errors if there are non-unique cell run IDs for the blocking cell.*
+
+Recall also the option of running  `pg.ready()` / `pg.ready(timeout=TIME_IN_S)`.
 
 ## Add the contents of a dataframe to the database
 
@@ -171,7 +175,7 @@ AVAILABLE_EXTENSIONS
 
 When creating the widget, pass the list of required extensions via the `extensions=` parameter. For example:  `pglite_panel(extensions=["vector", "fuzzystrmatch", "pg_trgm"])`
 
-The extension package is downloaded and the extension automatically enabled via an automaticlaly run `CREATE EXTENSION IF NOT EXISTS extension_name` call.
+If specified, the extension package is dynamically downloaded and the extension automatically enabled via an automatically run `CREATE EXTENSION IF NOT EXISTS extension_name` call.
 
 Examples:
 
@@ -182,7 +186,9 @@ Examples:
 
 ## Audible alerts
 
-To provide an audible alert when a query or a data dump generation operation has completed, set: `pg.audio = True`,
+To provide an audible alert when a query or a data dump generation operation has completed, set: `pg.audio = True`.
+
+If audible alerts are enabled, if an error is raised, an audible alert will sound and the error message will also be reported using the browser text-to-speech engine.
 
 ## TO DO
 
