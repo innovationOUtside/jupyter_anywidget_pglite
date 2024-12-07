@@ -1,6 +1,6 @@
 # jupyter_anywidget_pglite
 
-Jupyter [`anywidget`](https://anywidget.dev/) and magic for working with [`pglite`](https://github.com/electric-sql/pglite) (single use postgres wasm build).
+Jupyter [`anywidget`](https://anywidget.dev/) and magic for working with [`pglite`](https://github.com/electric-sql/pglite) (single user postgres wasm build) (provodes access to a PostgreSQL browser running solely in the the browser).
 
 Install from PyPi as: `pip install jupyter_anywidget_pglite`
 
@@ -214,4 +214,4 @@ If audible alerts are enabled, if an error is raised, an audible alert will soun
 
 # Other (predominantly, ouseful) sideloading wasm anywidgets
 
-See the GitHup topc tag: [`jupyter-wasm-anywidget-extension`](https://github.com/topics/jupyter-wasm-anywidget-extension)
+See the GitHub topic tag: [`jupyter-wasm-anywidget-extension`](https://github.com/topics/jupyter-wasm-anywidget-extension)
