@@ -32,6 +32,7 @@ try:
 except importlib.metadata.PackageNotFoundError:
     __version__ = "unknown"
 
+AVAILABLE_EXTENSIONS = ["fuzzystrmatch", "pg_trgm", "vector"]
 
 def load_datadump_from_file(file_path):
 
@@ -72,6 +73,7 @@ class postgresWidget(anywidget.AnyWidget):
     # Create a traitlet for the code content
     about = traitlets.Dict().tag(sync=True)
     code_content = traitlets.Unicode("").tag(sync=True)
+    extensions = traitlets.List().tag(sync=True)
     response = traitlets.Dict().tag(sync=True)
     headless = traitlets.Bool(False).tag(sync=True)
     multiline = traitlets.Unicode("").tag(sync=True)
@@ -84,13 +86,14 @@ class postgresWidget(anywidget.AnyWidget):
 
     # file_info = traitlets.Dict().tag(sync=True)
     # file_content = traitlets.Unicode().tag(sync=True)
-    def __init__(self, headless=False, idb="", data=None, **kwargs):
+    def __init__(self, headless=False, idb="", data=None, extensions=None, **kwargs):
         super().__init__(**kwargs)
         self.response = {"status": "initialising"}
         self.headless = headless
         self.idb = ""
         if idb:
             self.idb = idb if idb.startswith("idb://") else f"idb://{idb}"
+        self.extensions = extensions if extensions else []
         self.file_package = {}
         if isinstance(data, (str, Path)):
             p = Path(data)
@@ -119,6 +122,8 @@ class postgresWidget(anywidget.AnyWidget):
                         "Action not completed within the specified timeout."
                     )
                 time.sleep(0.1)
+        if self.response["status"] == "error":
+            warnings.warn(self.response["error_message"])
         return
 
     def ready(self, timeout=5):

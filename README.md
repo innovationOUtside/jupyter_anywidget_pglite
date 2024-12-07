@@ -157,6 +157,29 @@ Or create a new widget with the `pglite` database seeded from the file:
 
 `pg2 = pglite_panel(data="pgdata.tar.gz")`
 
+## Extensions
+
+An increasing range of PostgreSQL extensions are available for `pglite` ([catalogue](https://pglite.dev/extensions/)), and several of these are currently supported by `jupyter_anywidget_pglite`:
+
+```python
+from jupyter_anywidget_pglite import AVAILABLE_EXTENSIONS
+
+AVAILABLE_EXTENSIONS
+
+>>> ['fuzzystrmatch', 'pg_trgm', 'vector']
+```
+
+When creating the widget, pass the list of required extensions via the `extensions=` parameter. For example:  `pglite_panel(extensions=["vector", "fuzzystrmatch", "pg_trgm"])`
+
+The extension package is downloaded and the extension automatically enabled via an automaticlaly run `CREATE EXTENSION IF NOT EXISTS extension_name` call.
+
+Examples:
+
+- `pg_trgm`: `%pglite_query -w pg_panel -r -q "SELECT similarity('One sentence', 'Another sentence');"`
+- `fuzzystrmatch`: `%pglite_query -r -q "SELECT soundex('hello world!');"`
+
+*TO DO: provide a way for users to dynamically add references to additional extension packages.*
+
 ## Audible alerts
 
 To provide an audible alert when a query or a data dump generation operation has completed, set: `pg.audio = True`,

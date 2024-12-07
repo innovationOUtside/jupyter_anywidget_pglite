@@ -2,6 +2,7 @@ import "./postgres.css";
 import html from "./postgres.html";
 //import { PGlite } from "@electric-sql/pglite";
 import { PGlite } from "https://cdn.jsdelivr.net/npm/@electric-sql/pglite/dist/index.js";
+
 import { generateUUID } from "./uuid";
 import { play_success, play_error } from "./audio";
 
@@ -63,6 +64,71 @@ function createFileObj(file_package) {
 }
 
 function render({ model, el }) {
+  function handle_error(error) {
+    console.log(error);
+    if (model.get("audio")) play_error(error.message);
+    model.set("response", {
+      status: "error",
+      error_message: error.message,
+    });
+    model.save_changes();
+  }
+  async function loadExtensions(extensions) {
+    const extensionsObj = {};
+    const extensionModules = [
+      {
+        name: "fuzzystrmatch",
+        url: "https://cdn.jsdelivr.net/npm/@electric-sql/pglite/dist/contrib/fuzzystrmatch.js",
+      },
+      {
+        name: "pg_trgm",
+        url: "https://cdn.jsdelivr.net/npm/@electric-sql/pglite/dist/contrib/pg_trgm.js",
+      },
+      {
+        name: "vector",
+        url: "https://cdn.jsdelivr.net/npm/@electric-sql/pglite/dist/vector/index.js",
+      },
+    ];
+
+    // Prepare an array of promises for the imports
+    const importPromises = extensionModules.map(async ({ name, url }) => {
+      if (extensions.includes(name)) {
+        try {
+          const module = await import(url);
+          extensionsObj[name] = module[name];
+        } catch (error) {
+          handle_error(error);
+          console.error(`Failed to load ${name}:`, error);
+        }
+      }
+    });
+
+    // Wait for all import promises to complete
+    await Promise.all(importPromises);
+
+    return extensionsObj;
+  }
+
+  async function initializeDatabase(idb, options, extensions) {
+    const extensionsObj = await loadExtensions(extensions);
+
+    console.log(extensionsObj);
+
+    try {
+      const db = await PGlite.create({
+        datadir: idb,
+        options: options,
+        extensions: extensionsObj,
+      });
+      console.log("Database initialized successfully.");
+      return db; // Return the db object
+    } catch (error) {
+      handle_error(error);
+      console.error("Failed to initialize the database:", error);
+      throw error; // Re-throw the error to handle it in .catch
+    }
+  }
+
   const idb = model.get("idb");
   const file_data = model.get("file_package");
   const data = createFileObj(file_data);
@@ -70,7 +136,20 @@ function render({ model, el }) {
   if (data) options.loadDataDir = data;
 
   //const db = new PGlite();
-  const db = idb ? new PGlite(idb, options) : new PGlite(options);
+  const extensions = model.get("extensions");
+  initializeDatabase(idb, options, extensions)
+    .then(async (db) => {
+      for (const ext of extensions) {
+        await db.exec(`CREATE EXTENSION IF NOT EXISTS ${ext};`);
+      }
+      _render({ model, el, db });
+    })
+    .catch((error) => {
+      handle_error(error);
+    });
+}
+
+function _render({ model, el, db }) {
   const _headless = model.get("headless");
 
   let el2 = document.createElement("div");
@@ -139,14 +218,6 @@ function render({ model, el }) {
 
       queryDisplay(q);
       resultDisplay(r);
-    }
-
-    function handle_error(error) {
-      if (model.get("audio")) play_error(error.message);
-      model.set("response", {
-        status: "error",
-        error_message: error.message,
-      });
     }
 
     const sql = model.get("code_content");
@@ -220,9 +291,8 @@ function render({ model, el }) {
       model.set("response", { status: "ready" });
       model.save_changes();
     })
-    .catch((err) => {
-      alert(err);
-      console.error("Error executing query:", err);
+    .catch((error) => {
+      handle_error(error);
     });
 }
 
