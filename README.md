@@ -78,7 +78,7 @@ We can also run queries (with the same arguments) using the `%pglite_query` line
 
 `%pglite_query -r -q 'SELECT * FROM test LIMIT 1;'`
 
-As if we add the `-d` flag, this will return the query result as a dataframe.
+Add the `-d / --dataframe` flag to return the query result as a dataframe (not JupyterLite).
 
 Having made a query onto the database via a magic cell, we can retrieve the response:
 
