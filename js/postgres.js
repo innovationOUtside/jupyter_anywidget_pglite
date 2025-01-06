@@ -92,6 +92,10 @@ function render({ model, el }) {
         name: "tablefunc",
         url: "https://cdn.jsdelivr.net/npm/@electric-sql/pglite/dist/contrib/tablefunc.js",
       },
+      {
+        name: "isn",
+        url: "https://cdn.jsdelivr.net/npm/@electric-sql/pglite@0.2.15/dist/contrib/isn.js",
+      },
     ];
 
     // Prepare an array of promises for the imports
