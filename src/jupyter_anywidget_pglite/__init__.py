@@ -68,8 +68,8 @@ def load_datadump_from_file(file_path):
 
 
 class postgresWidget(anywidget.AnyWidget):
-    _css = pathlib.Path(__file__).parent / "static" / "postgres.css"
-    _esm = pathlib.Path(__file__).parent / "static" / "postgres.js"
+    _css = str(pathlib.Path(__file__).parent / "static" / "postgres.css")
+    _esm = str(pathlib.Path(__file__).parent / "static" / "postgres.js")
     # Create a traitlet for the code content
     about = traitlets.Dict().tag(sync=True)
     code_content = traitlets.Unicode("").tag(sync=True)
