@@ -193,16 +193,16 @@ def load_ipython_extension(ipython):
     ipython.register_magics(PGliteMagic)
 
 
-def pglite_headless(idb="", data=None):
+def pglite_headless(idb="", data=None, **kwargs):
     data = data if data else {}
-    widget_ = postgresWidget(headless=True, idb=idb, data=data)
+    widget_ = postgresWidget(headless=True, idb=idb, data=data, **kwargs)
     display(widget_)
     return widget_
 
 
-def pglite_inline(idb="", data=None):
+def pglite_inline(idb="", data=None, **kwargs):
     data = data if data else {}
-    widget_ = postgresWidget(idb=idb, data=data)
+    widget_ = postgresWidget(idb=idb, data=data, **kwargs)
     display(widget_)
     return widget_
 
