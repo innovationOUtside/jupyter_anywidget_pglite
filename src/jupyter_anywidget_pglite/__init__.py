@@ -88,7 +88,9 @@ class postgresWidget(anywidget.AnyWidget):
     # file_content = traitlets.Unicode().tag(sync=True)
     def __init__(self, headless=False, idb="", data=None, extensions=None, **kwargs):
         super().__init__(**kwargs)
-        self.response = {"status": "initialising"}
+        self.response = {
+            "status": "initialising",
+        }
         self.headless = headless
         self.idb = ""
         if idb:
@@ -111,6 +113,10 @@ class postgresWidget(anywidget.AnyWidget):
                 display("That doesn't seem to be a valid datadump / datadump file")
 
     def _wait(self, timeout, conditions=("status", "completed")):
+        if conditions[0] not in self.response:
+            # No wait condition available
+            return
+            
         start_time = time.time()
         with ui_events() as ui_poll:
             while (self.response[conditions[0]] != conditions[1]) & (
