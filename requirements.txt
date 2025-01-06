@@ -1,0 +1,14 @@
+## Requirements for JupyterLite 
+
+# Core modules (mandatory)
+jupyterlite-core
+jupyterlab
+notebook
+anywidget
+
+# KERNELS
+
+jupyterlite-xeus
+
+# Python kernel (optional)
+jupyterlite-pyodide-kernel
