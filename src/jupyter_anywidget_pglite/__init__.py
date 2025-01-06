@@ -34,7 +34,7 @@ try:
 except importlib.metadata.PackageNotFoundError:
     __version__ = "unknown"
 
-AVAILABLE_EXTENSIONS = ["fuzzystrmatch", "pg_trgm", "vector"]
+AVAILABLE_EXTENSIONS = ["fuzzystrmatch", "pg_trgm", "vector", "tablefunc", "isn"]
 
 def load_datadump_from_file(file_path):
 
