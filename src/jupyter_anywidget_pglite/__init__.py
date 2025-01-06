@@ -17,10 +17,12 @@ from IPython.display import display
 
 try:
     from jupyter_ui_poll import ui_events
+    WAIT_AVAILABLE = True
 except:
     warnings.warn(
         "You must install jupyter_ui_poll if you want to return cell responses / blocking waits (not JupyerLite); install necessary packages then restart the notebook kernel:%pip install jupyter_ui_poll"
     )
+    WAIT_AVAILABLE = False
 
 try:
     import pandas as pd
@@ -113,10 +115,10 @@ class postgresWidget(anywidget.AnyWidget):
                 display("That doesn't seem to be a valid datadump / datadump file")
 
     def _wait(self, timeout, conditions=("status", "completed")):
-        if conditions[0] not in self.response:
+        if WAIT_AVAILABLE and conditions[0] not in self.response:
             # No wait condition available
             return
-            
+
         start_time = time.time()
         with ui_events() as ui_poll:
             while (self.response[conditions[0]] != conditions[1]) & (
