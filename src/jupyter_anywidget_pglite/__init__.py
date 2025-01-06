@@ -115,7 +115,7 @@ class postgresWidget(anywidget.AnyWidget):
                 display("That doesn't seem to be a valid datadump / datadump file")
 
     def _wait(self, timeout, conditions=("status", "completed")):
-        if WAIT_AVAILABLE and conditions[0] not in self.response:
+        if not WAIT_AVAILABLE or conditions[0] not in self.response:
             # No wait condition available
             return
 
