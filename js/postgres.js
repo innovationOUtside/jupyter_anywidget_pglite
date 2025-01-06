@@ -150,6 +150,15 @@ function render({ model, el }) {
 }
 
 function _render({ model, el, db }) {
+  function handle_error(error) {
+    console.log(error);
+    if (model.get("audio")) play_error(error.message);
+    model.set("response", {
+      status: "error",
+      error_message: error.message,
+    });
+    model.save_changes();
+  }
   const _headless = model.get("headless");
 
   let el2 = document.createElement("div");
