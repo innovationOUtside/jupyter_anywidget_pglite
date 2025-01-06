@@ -88,6 +88,10 @@ function render({ model, el }) {
         name: "vector",
         url: "https://cdn.jsdelivr.net/npm/@electric-sql/pglite/dist/vector/index.js",
       },
+      {
+        name: "tablefunc",
+        url: "https://cdn.jsdelivr.net/npm/@electric-sql/pglite/dist/contrib/tablefunc.js",
+      },
     ];
 
     // Prepare an array of promises for the imports
