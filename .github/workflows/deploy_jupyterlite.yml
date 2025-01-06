@@ -30,11 +30,11 @@ jobs:
           cp README*.md content
           jupyter lite build --contents content --output-dir dist
 
-#      - name: Upload artifact
-#        uses: actions/upload-pages-artifact@v3
-#        with:
-#          name: jupyterlite_dist
-#          path: ./dist
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          name: jupyterlite_dist
+          path: ./dist
 
 #      - name: Build JupyterBook site
 #        run: |
