@@ -155,7 +155,7 @@ class postgresWidget(anywidget.AnyWidget):
         if wait or timeout:
             self._wait(timeout, ("status", "datadump_ready"))
 
-    def df(self):
+    def df(self, index="_id"):
         response = self.response["response"]
         if "pandas" in sys.modules:
             # Extracting column names from the 'fields' list
@@ -164,7 +164,10 @@ class postgresWidget(anywidget.AnyWidget):
             # Get the data rows
             data = self.response["response"]["rows"]
             # Create the dataframe
-            _df = pd.DataFrame.from_records(data, columns=columns, index="id")
+            if index and index in data:
+                _df = pd.DataFrame.from_records(data, columns=columns, index="id")
+            else:
+                _df = pd.DataFrame.from_records(data, columns=columns)
             return _df
         display("pandas not available...")
         return response
