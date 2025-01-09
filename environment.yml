@@ -6,6 +6,6 @@ dependencies:
   - pip
   - watchfiles
   - xeus-python
-  - anywidget
   - pip:
     - jupyter_anywidget_pglite
+    - anywidget==0.9.13
