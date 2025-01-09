@@ -6,8 +6,6 @@ jupyterlab
 notebook
 anywidget==0.9.13
 
-watchfiles
-
 # KERNELS
 
 jupyterlite-xeus
