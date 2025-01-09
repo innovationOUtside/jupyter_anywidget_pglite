@@ -4,7 +4,6 @@ channels:
   - conda-forge
 dependencies:
   - pip
-  - watchfiles
   - xeus-python
   - pip:
     - jupyter_anywidget_pglite
