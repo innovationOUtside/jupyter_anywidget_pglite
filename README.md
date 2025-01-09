@@ -6,6 +6,8 @@ Install from PyPi as: `pip install jupyter_anywidget_pglite`
 
 ![Example of usage for pglite anywidget and magic](images/pglite_anywidget_magic.png)
 
+Uses: `anywidget==0.9.13`
+
 Usage:
 
 - import package and magic:
@@ -44,6 +46,19 @@ To persist the database in browser storage, set the `idb='DBNAME`` parameter whe
 `pg_headless_persist = pglite_headless(idb="pglitetest1")`
 
 ## Running queries
+
+We run a query by setting query state on the widget. The following Python function helps with that:
+
+```python
+pg_headless.query("SELECT 'hello';")
+```
+
+```python
+# If blocking isa vailable (not JuphyterLite, marimo)
+pg_headless.query("SELECT 'hello';", autorespond=True, df=True)
+```
+
+### Running querioes using magics
 
 To run a query, place the query insde a `%%pglite` cell block magic.
 

@@ -8,7 +8,6 @@
 		"esbuild-plugin-wasm": "^1.1.0"
 	},
 	"devDependencies": {
-		"@anywidget/types": "^0.1.9",
 		"esbuild": "^0.23.0",
 		"typescript": "^5.5.3"
 	}

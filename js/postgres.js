@@ -2,6 +2,7 @@ import "./postgres.css";
 import html from "./postgres.html";
 //import { PGlite } from "@electric-sql/pglite";
 import { PGlite } from "https://cdn.jsdelivr.net/npm/@electric-sql/pglite/dist/index.js";
+//import { PGlite } from "@electric-sql/pglite";
 
 import { generateUUID } from "./uuid";
 import { play_success, play_error } from "./audio";

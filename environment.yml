@@ -5,6 +5,6 @@ channels:
 dependencies:
   - pip
   - xeus-python
-  - anywidget
+  - anywidget==0.9.13
   - pip:
     - jupyter_anywidget_pglite
