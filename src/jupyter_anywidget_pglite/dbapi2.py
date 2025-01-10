@@ -1,5 +1,10 @@
 # ---------
 # DBAPI2 wrapper via claude.ai
+from IPython.display import display
+import platform
+
+PLATFORM = platform.system().lower()
+
 class PGLiteCursor:
     def __init__(self, widget):
         self.widget = widget
@@ -140,4 +145,7 @@ class PGLiteConnection:
 # Helper function to create a connection
 def create_connection(widget):
     """Create a DB-API 2.0 compliant connection from a postgresWidget."""
+    if PLATFORM=="emscripten":
+        display("DBAPI2 connections not currently available on emscripten platforms.")
+        return
     return PGLiteConnection(widget)

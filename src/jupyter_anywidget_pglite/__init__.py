@@ -29,10 +29,9 @@ except:
     )
     WAIT_AVAILABLE = False
 
-try:
-    import pandas as pd
-except:
-    pass
+
+# Make pandas a requirement
+import pandas as pd
 
 try:
     __version__ = importlib.metadata.version("jupyter_anywidget_pglite")
@@ -164,16 +163,24 @@ class postgresWidget(anywidget.AnyWidget):
                 response = self.df()
             return response
 
+    def table_results(self):
+        return [t["table_name"] for t in self.response["response"]["rows"]]
+
     def tables(self, autorespond=None, timeout=5):
+        autorespond = self.prefer_use_blocking if autorespond is None else autorespond
         _tables = self.query(
             "SELECT * FROM information_schema.tables WHERE table_type = 'BASE TABLE' AND table_schema = 'public'",
             autorespond=autorespond,
             timeout=timeout,
         )
 
-        return [t["table_name"] for t in _tables["response"]["rows"]]
+        if autorespond:
+            return [t["table_name"] for t in _tables["response"]["rows"]]
+        else:
+            display("No autoresponse available. View results in response using .table_results()")
 
     def table_schema(self, table, autorespond=None, timeout=5):
+        autorespond = self.prefer_use_blocking if autorespond is None else autorespond
         table_schema_query = f"""
     SELECT 
         column_name,
@@ -193,7 +200,12 @@ class postgresWidget(anywidget.AnyWidget):
             autorespond=autorespond,
             timeout=timeout,
         )
-        return _schema
+        if autorespond:
+            return _schema
+        else:
+            display(
+                "No autoresponse available. View response using .response() "
+            )
 
     def set_code_content(self, value, split=""):
         self.multiline = split

@@ -1,3 +1,9 @@
+from IPython.display import display
+import platform
+
+PLATFORM = platform.system().lower()
+
+# Via: claude.ai
 from sqlalchemy.engine import Engine, Connection
 from sqlalchemy.pool import Pool
 from sqlalchemy.dialects import registry
@@ -180,7 +186,9 @@ class PGLiteResult:
     def all(self):
         return self.fetchall()
 
-
 def create_engine(widget):
     """Create a SQLAlchemy engine from a postgresWidget."""
+    if PLATFORM=="emscripten":
+            display("SQLAlchemy connections not currently available on emscripten platforms.")
+            return
     return PGLiteEngine(widget)
