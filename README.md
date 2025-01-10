@@ -53,12 +53,29 @@ We run a query by setting query state on the widget. The following Python functi
 pg_headless.query("SELECT 'hello';")
 ```
 
+If you are not in an `emscripten` platform, blocking replies will be attempted automatically. These can be disabled by setting `pg_headless.prefer_use_blocking=False`. Blocking attempts can also be forced by calling queries with `autorespond=True`.
+
 ```python
-# If blocking isa vailable (not JuphyterLite, marimo)
+# If blocking is available (not JuphyterLite, marimo)
 pg_headless.query("SELECT 'hello';", autorespond=True, df=True)
 ```
 
-### Running querioes using magics
+List tables: `pg_headless.tables(autorespond=True)`
+
+Show table schema: `pg_headless.table_schema("test", autorespond=True)`
+
+## Inserting data
+
+We can insert data from a data frame into a pre-existing table with an appropriate schema:
+
+```python
+import pandas as pd
+df = pd.DataFrame({"title":["a","b","c"]})
+
+# Insert data from a dataframe into a table that already exists
+pg_headless.insert_from_df("test", df, autorespond=True)
+```
+### Running queries using magics
 
 To run a query, place the query insde a `%%pglite` cell block magic.
 
@@ -127,7 +144,7 @@ Recall also the option of running  `pg.ready()` / `pg.ready(timeout=TIME_IN_S)`.
 
 ## Add the contents of a dataframe to the database
 
-If we have a table already defined on the database, and a dataframe that confoms to it, we can add the data in the dataframe to the table as follows:
+If we have a table already defined on the database, and a dataframe that confoms to it, we can add the data in the dataframe to the table using magic as follows (BROKEN?):
 
 `%pglite_df_insert -d df -t my_table`
 

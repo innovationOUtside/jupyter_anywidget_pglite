@@ -15,8 +15,13 @@ import time
 
 from IPython.display import display
 
+import platform
+
+PLATFORM = platform.system().lower()
+
 try:
     from jupyter_ui_poll import ui_events
+
     WAIT_AVAILABLE = True
 except:
     warnings.warn(
@@ -35,6 +40,7 @@ except importlib.metadata.PackageNotFoundError:
     __version__ = "unknown"
 
 AVAILABLE_EXTENSIONS = ["fuzzystrmatch", "pg_trgm", "vector", "tablefunc", "isn"]
+
 
 def load_datadump_from_file(file_path):
 
@@ -94,6 +100,8 @@ class postgresWidget(anywidget.AnyWidget):
             "status": "initialising",
         }
         self.headless = headless
+        self.prefer_use_dataframe = False
+        self.prefer_use_blocking = PLATFORM != "emscripten"  # False
         self.idb = ""
         if idb:
             self.idb = idb if idb.startswith("idb://") else f"idb://{idb}"
@@ -137,6 +145,56 @@ class postgresWidget(anywidget.AnyWidget):
     def ready(self, timeout=5):
         self._wait(timeout, ("status", "ready"))
 
+    def query(self, query, multi=False, autorespond=None, timeout=5, df=None):
+        # The multi=True setting implies there are multiple query statements
+        # If multi=True, we get mulitple response objects in a list
+        # If multi=False, we get a single response object as a dict
+        # Only multi=False can be used to return a dataframe
+        # The autorespond will try to wait
+        # The df return will only apply if wait is available
+        if multi is not None:
+            self.multiexec = multi
+        self.set_code_content(query)
+        autorespond = self.prefer_use_blocking if autorespond is None else autorespond
+        df = self.prefer_use_dataframe if df is None else df
+        if autorespond:
+            timeout = timeout if timeout > 0 else 5
+            response = self.blocking_reply(timeout)
+            if df:
+                response = self.df()
+            return response
+
+    def tables(self, autorespond=None, timeout=5):
+        _tables = self.query(
+            "SELECT * FROM information_schema.tables WHERE table_type = 'BASE TABLE' AND table_schema = 'public'",
+            autorespond=autorespond,
+            timeout=timeout,
+        )
+
+        return [t["table_name"] for t in _tables["response"]["rows"]]
+
+    def table_schema(self, table, autorespond=None, timeout=5):
+        table_schema_query = f"""
+    SELECT 
+        column_name,
+        data_type,
+        character_maximum_length,
+        is_nullable,
+        column_default
+    FROM 
+        information_schema.columns
+    WHERE 
+        table_name = '{table}'
+        AND table_schema = 'public';
+    """
+
+        _schema = self.query(
+            table_schema_query,
+            autorespond=autorespond,
+            timeout=timeout,
+        )
+        return _schema
+
     def set_code_content(self, value, split=""):
         self.multiline = split
         self.response = {"status": "processing"}
@@ -158,18 +216,21 @@ class postgresWidget(anywidget.AnyWidget):
     def df(self, index="_id"):
         response = self.response["response"]
         if "pandas" in sys.modules:
-            # Extracting column names from the 'fields' list
-            columns = [field['name'] for field in response['fields']]
-            # TO DO: types are also available if we have a lookup table...
-            # Get the data rows
-            data = self.response["response"]["rows"]
-            # Create the dataframe
-            if index and index in data:
-                _df = pd.DataFrame.from_records(data, columns=columns, index="id")
-            else:
-                _df = pd.DataFrame.from_records(data, columns=columns)
-            return _df
-        display("pandas not available...")
+            # TO DO - need to handle the multiresponse...
+            # n The following only handles the simple, non-multi-response
+            if isinstance(response, dict):
+                # Extracting column names from the 'fields' list
+                columns = [field["name"] for field in response["fields"]]
+                # TO DO: types are also available if we have a lookup table...
+                # Get the data rows
+                data = self.response["response"]["rows"]
+                # Create the dataframe
+                if index and index in data:
+                    _df = pd.DataFrame.from_records(data, columns=columns, index="id")
+                else:
+                    _df = pd.DataFrame.from_records(data, columns=columns)
+                return _df
+            display("pandas not available...")
         return response
 
     # Via ChatGPT
@@ -195,6 +256,26 @@ class postgresWidget(anywidget.AnyWidget):
                 f.write(file_data)
 
             return file_name
+
+    def insert_from_df(self, table, df, autorespond=None, timeout=5, debug=False):
+        # Validate the DataFrame
+        if not isinstance(df, pd.DataFrame):
+            raise TypeError(f"'You need to provide data as a pandas DataFrame")
+
+        # TO DO: test whether table exists
+        # Generate the SQL statement
+        columns = ", ".join(df.columns)
+        values = ",\n    ".join(
+            [
+                f"({', '.join(repr(value) for value in row)})"
+                for row in df.itertuples(index=False, name=None)
+            ]
+        )
+        sql = f"INSERT INTO {table} ({columns})\nVALUES\n{values};"
+        if debug:
+            display(sql)
+        # return sql  # self._run_query(args, sql)
+        return self.query(sql, autorespond=autorespond, timeout=timeout)
 
 
 from .magics import PGliteMagic
@@ -232,7 +313,8 @@ def create_panel(func):
         from sidecar import Sidecar
     except:
         warnings.warn(
-            "Missing package (sidecar): run `pip install sidecar` before trying to access the panel.")
+            "Missing package (sidecar): run `pip install sidecar` before trying to access the panel."
+        )
 
     @wraps(func)
     def wrapper(title=None, anchor="split-right", *args, **kwargs):
