@@ -75,6 +75,29 @@ df = pd.DataFrame({"title":["a","b","c"]})
 # Insert data from a dataframe into a table that already exists
 pg_headless.insert_from_df("test", df, autorespond=True)
 ```
+
+## Simple DBAPI2 and SQLAlchemy Connections
+
+Partial support is provided for DBAPI2 and SQLAlchemy connections. 
+
+For example, we can pass a connection into a `pandas.read_sql()` function (this probably won't work in JupyterLite, marimo, etc., where blocking is not supported):
+
+```python
+from jupyter_anywidget_pglite.dbapi2 import create_connection
+
+conn = create_connection(pg_headless)
+pd.read_sql("SELECT * FROM test;", conn)
+```
+
+
+```python
+# Minimal SQLAlchemy connection object support
+from jupyter_anywidget_pglite.sqlalchemy_api import create_engine
+
+conn2 = create_engine(pg_headless)
+pd.read_sql("SELECT * FROM test;", conn2)
+```
+
 ### Running queries using magics
 
 To run a query, place the query insde a `%%pglite` cell block magic.
