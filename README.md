@@ -47,6 +47,53 @@ To persist the database in browser storage, set the `idb='DBNAME`` parameter whe
 
 `pg_headless_persist = pglite_headless(idb="pglitetest1")`
 
+### Running queries using magics
+
+To run a query, place the query insde a `%%pglite` cell block magic.
+
+- use the `-w / --widget-name` setting to set the widget within the magic and it does not need to be passed again (for example, `%%pglite_magic -w pg`)
+- alternatively, prior to calling the block magic, set the widget used in the magic via a line magic: `%setwidget pg`
+
+Running queries on the database using IPython cell block magic `%%pglite -w WIDGET_VARIABLE`:
+
+```python
+%%pglite_magic -w pg
+CREATE TABLE IF NOT EXISTS test  (
+        id serial primary key,
+        title varchar not null
+      );
+
+#----
+%%pglite_magic
+INSERT INTO test (title) VALUES ('dummy');
+
+#----
+%%pglite_magic
+SELECT * FROM test;
+
+```
+
+To run multiple SQL statements in the same cell:
+
+- use the `-m / --multiple-statements` flag (default: `False`) when calling the cell block magic [NOT RECOMMENDED]. This will naively split the query on each `;` character, and then run each split item as a separate command. The response will be set to the response from the final query;
+- use the `-M / --multiple-statement-block` flag to run all the tems using the `pglite` `.exec()` command.
+
+We can also run queries (with the same arguments) using the `%pglite_query` line magic, with the query set via the `-q / --query` parameter:
+
+`%pglite_query -r -q 'SELECT * FROM test LIMIT 1;'`
+
+Add the `-d / --dataframe` flag to return the query result as a dataframe (not JupyterLite).
+
+Having made a query onto the database via a magic cell, we can retrieve the response:
+
+```python
+pg.response
+```
+
+If `pandas` is installed, we can get rows returned from a query response as a dataframe:
+
+`pg.df()`
+
 ## Running queries
 
 We run a query by setting query state on the widget. The following Python function helps with that:
@@ -99,53 +146,6 @@ from jupyter_anywidget_pglite.sqlalchemy_api import create_engine
 conn2 = create_engine(pg_headless)
 pd.read_sql("SELECT * FROM test;", conn2)
 ```
-
-### Running queries using magics
-
-To run a query, place the query insde a `%%pglite` cell block magic.
-
-- use the `-w / --widget-name` setting to set the widget within the magic and it does not need to be passed again (for example, `%%pglite_magic -w pg`)
-- alternatively, prior to calling the block magic, set the widget used in the magic via a line magic: `%setwidget pg`
-
-Running queries on the database using IPython cell block magic `%%pglite -w WIDGET_VARIABLE`:
-
-```python
-%%pglite_magic -w pg
-CREATE TABLE IF NOT EXISTS test  (
-        id serial primary key,
-        title varchar not null
-      );
-
-#----
-%%pglite_magic
-INSERT INTO test (title) VALUES ('dummy');
-
-#----
-%%pglite_magic
-SELECT * FROM test;
-
-```
-
-To run multiple SQL statements in the same cell:
-
-- use the `-m / --multiple-statements` flag (default: `False`) when calling the cell block magic [NOT RECOMMENDED]. This will naively split the query on each `;` character, and then run each split item as a separate command. The response will be set to the response from the final query;
-- use the `-M / --multiple-statement-block` flag to run all the tems using the `pglite` `.exec()` command.
-
-We can also run queries (with the same arguments) using the `%pglite_query` line magic, with the query set via the `-q / --query` parameter:
-
-`%pglite_query -r -q 'SELECT * FROM test LIMIT 1;'`
-
-Add the `-d / --dataframe` flag to return the query result as a dataframe (not JupyterLite).
-
-Having made a query onto the database via a magic cell, we can retrieve the response:
-
-```python
-pg.response
-```
-
-If `pandas` is installed, we can get rows returned from a query response as a dataframe:
-
-`pg.df()`
 
 ### Blocking
 
