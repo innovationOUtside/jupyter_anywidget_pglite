@@ -2,6 +2,8 @@
 
 Jupyter [`anywidget`](https://anywidget.dev/) and magic for working with [`pglite`](https://github.com/electric-sql/pglite) (single user postgres wasm build) (provodes access to a PostgreSQL browser running solely in the the browser).
 
+[Try it in JupyterLite]( https://innovationoutside.github.io/jupyter_anywidget_pglite/)
+
 Install from PyPi as: `pip install jupyter_anywidget_pglite`
 
 ![Example of usage for pglite anywidget and magic](images/pglite_anywidget_magic.png)
