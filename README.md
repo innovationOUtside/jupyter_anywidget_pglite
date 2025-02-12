@@ -1,6 +1,6 @@
 # jupyter_anywidget_pglite
 
-Jupyter [`anywidget`](https://anywidget.dev/) and magic for working with [`pglite`](https://github.com/electric-sql/pglite) (single user postgres wasm build) (provodes access to a PostgreSQL browser running solely in the the browser).
+Jupyter [`anywidget`](https://anywidget.dev/) and magic for working with [`pglite`](https://github.com/electric-sql/pglite) (single user postgres wasm build) (provides access to a single PostgreSQL db instance running solely in the the browser).
 
 Install from PyPi as: `pip install jupyter_anywidget_pglite`
 
@@ -41,7 +41,7 @@ Use `pg.ready()` / `pg.ready(timeout=TIME_IN_S)` function that will block until 
 
 ## Persisting data in browser storage
 
-To persist the database in browser storage, set the `idb='DBNAME`` parameter when creating a widget. For example:
+To persist the database in browser storage, set the `idb='DBNAME` parameter when creating a widget. For example:
 
 `pg_headless_persist = pglite_headless(idb="pglitetest1")`
 
