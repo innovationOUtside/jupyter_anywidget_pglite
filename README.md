@@ -102,6 +102,13 @@ We run a query by setting query state on the widget. The following Python functi
 pg_headless.query("SELECT 'hello';")
 ```
 
+View tables:
+
+```python
+%%pglite_magic -w pg -r
+SELECT * FROM pg_catalog.pg_tables;
+```
+
 If you are not in an `emscripten` platform, blocking replies will be attempted automatically. These can be disabled by setting `pg_headless.prefer_use_blocking=False`. Blocking attempts can also be forced by calling queries with `autorespond=True`.
 
 ```python
