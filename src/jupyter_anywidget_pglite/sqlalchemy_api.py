@@ -9,16 +9,20 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.pool import Pool
 from sqlalchemy import types as sqltypes
 from sqlalchemy.engine.default import DefaultDialect
-
+from sqlalchemy.engine import Connection
 from sqlalchemy.dialects.postgresql.base import PGCompiler, PGDialect
 from sqlalchemy import inspect
 from sqlalchemy.engine.reflection import Inspector
 
+from sqlalchemy.sql import insert, select
+from sqlalchemy.sql.dml import Insert
+from sqlalchemy.sql.selectable import Select
 
 # from sqlalchemy.ext.compiler import compiles
 # from sqlalchemy.sql.elements import BindParameter
 # from sqlalchemy.sql.ddl import CreateTable, CreateIndex, CreateSchema
 from sqlalchemy.sql.compiler import DDLCompiler
+
 # from sqlalchemy.dialects.postgresql.base import PGDialect, PGDDLCompiler
 from sqlalchemy.sql.compiler import IdentifierPreparer
 from sqlalchemy.sql.elements import quoted_name
@@ -27,6 +31,49 @@ import sqlalchemy
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+def dry_run_sql(query, params):
+    # Check if the query is an INSERT
+    if isinstance(query, Insert):
+        # If params is a list of dicts, generate individual INSERT statements
+        if isinstance(params, list):
+            compiled_sqls = []
+            for param in params:
+                compiled_sql = query.values(**param).compile(
+                    compile_kwargs={"literal_binds": True}
+                )
+                compiled_sqls.append(str(compiled_sql))  # Convert to string
+            return compiled_sqls
+        else:
+            # Handle single row insertion
+            compiled_sql = query.values(**params).compile(
+                compile_kwargs={"literal_binds": True}
+            )
+            return str(compiled_sql)  # Return the compiled SQL as string
+
+    # Check if the query is a SELECT statement
+    elif isinstance(query, Select):
+        # If params is a dictionary, replace the placeholders with actual values
+        compiled_sql = query.compile(compile_kwargs={"literal_binds": True})
+
+        # Manually substitute parameters into the query if it's a SELECT
+        if isinstance(params, dict):
+            # Create the SQL string with parameters replaced by their actual values
+            compiled_sql_str = str(compiled_sql)
+            for key, value in params.items():
+                # Replace placeholders like :param with actual values
+                compiled_sql_str = compiled_sql_str.replace(f":{key}", str(value))
+            return compiled_sql_str
+
+        return str(
+            compiled_sql
+        )  # Return the compiled SQL as string if no params are given
+
+    # Handle other types of queries, if needed (for example, DELETE or UPDATE)
+    else:
+        raise ValueError("Unsupported query type")
+
 
 class PGLiteIdentifierPreparer(IdentifierPreparer):
     def __init__(self, dialect):
@@ -46,7 +93,7 @@ class PGLiteCompiler(PGCompiler):
         """Process the statement before compiling."""
         print(f"DEBUG - processing statement: {type(stmt)}")
         result = super().process(stmt, **kw)
-        print(f"DEBUG - compiled to: {result}")
+        print(f"DEBUG - preprocessed to: {result}")
         return result
 
     def visit_table(self, table, **kw):
@@ -60,14 +107,14 @@ class PGLiteCompiler(PGCompiler):
         table = insert_stmt.table
 
         # Check if explicit parameters are given in kw
-        parameters = kw.pop('parameters', {})
+        parameters = kw.pop("parameters", {})
 
         # Check if this is a multi-values insert (common with pandas)
         if isinstance(insert_stmt.values, list):
             # Multi-row insert
             stmt = f'INSERT INTO "{table.name}" ('
 
-            # Get column names
+            # Get column names (ensure safe handling)
             column_names = [c.key for c in insert_stmt.values[0].keys()]
             stmt += ", ".join(f'"{col}"' for col in column_names)
             stmt += ") VALUES "
@@ -85,13 +132,22 @@ class PGLiteCompiler(PGCompiler):
                 values_clauses.append(value_clause)
 
             stmt += ", ".join(values_clauses)
-            return stmt
+
+            # Create params dict (corresponding to each placeholder)
+            params = {}
+            bind_index = 1
+            for param_set in insert_stmt.values:
+                for col in column_names:
+                    params[f"${bind_index}"] = param_set[col]
+                    bind_index += 1
+
+            return stmt, params
         else:
             # Handle single row insert with either positional or named parameters
             stmt = f'INSERT INTO "{table.name}" ('
 
             # Get column names (with safer handling)
-            if hasattr(insert_stmt, 'parameters') and insert_stmt.parameters:
+            if hasattr(insert_stmt, "parameters") and insert_stmt.parameters:
                 # Use provided parameters if available
                 column_names = list(insert_stmt.parameters.keys())
             else:
@@ -102,7 +158,7 @@ class PGLiteCompiler(PGCompiler):
             stmt += ") VALUES ("
 
             # Add parameter placeholders - use named parameters if available
-            if kw.get('use_named_parameters', False):
+            if kw.get("use_named_parameters", False):
                 placeholders = [f":{col}" for col in column_names]
             else:
                 placeholders = [f"${i+1}" for i in range(len(column_names))]
@@ -110,8 +166,16 @@ class PGLiteCompiler(PGCompiler):
             stmt += ", ".join(placeholders)
             stmt += ")"
 
-            # Define the params variable
-            params = {f"${i+1}": parameters[col] for i, col in enumerate(column_names)}
+            # Construct parameters map
+            if parameters:
+                params = {
+                    f"${i+1}": parameters[col] for i, col in enumerate(column_names)
+                }
+            else:
+                # Default params: these will be extracted from the insert_stmt if no `parameters` are provided
+                params = {
+                    f"${i+1}": None for i in range(len(column_names))
+                }  # placeholders only, real values come later
 
             return stmt, params
 
@@ -378,6 +442,25 @@ class PGLiteDialect(PGDialect):
 
     def do_ping(self, dbapi_connection):
         return True
+
+    def _get_server_version_info(self, connection):
+        query = "SELECT version();"
+        result = connection.execute(query)
+
+        # Fetch the first row, which contains the version string
+        version_string = result.fetchone()[0]
+
+        # Adjust regex to handle the format in your example
+        version_match = re.search(r"PostgreSQL (\d+)\.(\d+)", version_string)
+
+        if version_match:
+            # Extract version numbers and return as a tuple (major, minor)
+            major = int(version_match.group(1))
+            minor = int(version_match.group(2))
+            return (major, minor)
+        else:
+            # If the version string doesn't match, guess
+            return (16, 4)
 
     def get_schema_names(self, connection, **kw):
         query = "SELECT nspname FROM pg_namespace WHERE nspname !~ '^pg_' AND nspname != 'information_schema';"
@@ -647,6 +730,7 @@ class PGLiteEngine(Engine):
         self.dialect = PGLiteDialect()
         self.url = None
         self._compiled_cache = {}
+        self.dialect.server_version_info = (16, 4) #Hack
 
     def connect(self):
         return PGLiteConnection(self)
@@ -657,7 +741,9 @@ class PGLiteEngine(Engine):
     def begin(self):
         return self.connect().begin()
 
-    def _execute_context(self, dialect, constructor, statement, parameters, *args, **kw):
+    def _execute_context(
+        self, dialect, constructor, statement, parameters, *args, **kw
+    ):
         """Custom execute context method to handle compilation."""
         connection = self.connect()
         try:
@@ -671,14 +757,17 @@ class PGLiteEngine(Engine):
             connection.close()
 
 
-class PGLiteConnection:
+class PGLiteConnection(Connection):
     def __init__(self, engine):
+
         self.engine = engine
         self.widget = engine.widget
         self._active_transaction = None
         self._closed = False
         self.dialect = engine.dialect
         self._inspector = None
+        self._execution_options = {}
+
 
     def _execute_clauseelement(
         self, elem, multiparams=None, params=None, execution_options=None
@@ -733,7 +822,7 @@ class PGLiteConnection:
         return (
             self._active_transaction is not None and self._active_transaction.is_active
         )
-    
+
     def execute(self, statement, parameters=None, execution_options=None):
         logger.debug(f"Preparing to execute statement of type: {type(statement)}")
 
@@ -744,74 +833,28 @@ class PGLiteConnection:
         elif not isinstance(statement, str):
             # Create a proper compile context with positional parameters
             compiled = statement.compile(
-                dialect=self.dialect,
-                compile_kwargs={"literal_binds": False}
+                dialect=self.dialect, compile_kwargs={"literal_binds": False}
             )
-            
+
             # Get the SQL string
-            query = str(compiled)
-            logger.debug(f"Compiled statement to query: {query}")
+            query = compiled.statement
+            logger.debug(f"Compiled to {query}")
+            # query = str(compiled)
+            # query = compiled[0]
+            # logger.debug(f"Compiled statement to query: {query}")
 
             # Convert parameters to positional format
             if parameters is None and hasattr(compiled, "params"):
                 parameters = compiled.params
-                
+
             # Handle parameter conversion
             if parameters:
-                logger.warning(f"THERE ARE PARAMETERS {parameters} for query {query}")
-                if hasattr(compiled, "positiontup") and compiled.positiontup:
-                    if isinstance(parameters, dict):
-                        # Convert named parameters to positional
-                        params_in_order = []
-                        for key in compiled.positiontup:
-                            # Handle column objects that might be in the keys
-                            param_key = key.key if hasattr(key, 'key') else key
-                            param_str_key = str(param_key)
-                            
-                            if param_key in parameters:
-                                params_in_order.append(parameters[param_key])
-                            elif param_str_key in parameters:
-                                params_in_order.append(parameters[param_str_key])
-                            else:
-                                logger.warning(f"Parameter {param_key} not found in parameters dict")
-                                params_in_order.append(None)
-                        
-                        parameters = params_in_order
-                        logger.debug(f"Converted parameters to positional: {parameters}")
-                    elif isinstance(parameters, list) and all(isinstance(p, dict) for p in parameters):
-                        # Handle list of dicts for bulk inserts
-                        if len(parameters) > 0:
-                            keys = list(parameters[0].keys())
-                            flat_params = []
-                            for param_dict in parameters:
-                                for key in keys:
-                                    flat_params.append(param_dict.get(key))
-                            parameters = flat_params
-                            logger.debug(f"Flattened bulk parameters: {parameters}")
-                
-                # Fix any parameter placeholders in the query if needed
-                # Convert %(name)s format to $N format
-                if "%" in query and "$" not in query:
-                    logger.debug("Converting named parameters to positional in query")
-                    
-                    # Simple conversion for common cases
-                    param_index = 1
-                    modified_query = ""
-                    i = 0
-                    while i < len(query):
-                        if query[i:i+2] == "%(" and ")s" in query[i:]:
-                            # Skip to end of placeholder
-                            end_pos = query.find(")s", i)
-                            if end_pos != -1:
-                                modified_query += f"${param_index}"
-                                param_index += 1
-                                i = end_pos + 2
-                                continue
-                        modified_query += query[i]
-                        i += 1
-                    
-                    query = modified_query
-                    logger.debug(f"Modified query: {query}")
+                logger.debug(f"THERE ARE PARAMETERS {parameters}")
+
+                # query = dry_run_sql(query, parameters)
+                # logger.debug(f"Modified query: {query}")
+            else:
+                logger.debug(f"THERE ARE NO PARAMETERS")
         else:
             query = str(statement)
             logger.debug(f"Statement is already a string: {query}")
@@ -822,12 +865,16 @@ class PGLiteConnection:
 
         logger.debug(f"Executing query: {query}")
         logger.debug(f"With parameters: {parameters}")
-        
-        result = self.widget.query(query, params=parameters, multi=False, autorespond=True)
+
+        result = self.widget.query(
+            query, params=parameters, multi=False, autorespond=True
+        )
 
         if result["status"] != "completed":
             logger.error(f"Query failed with result: {result}")
-            raise Exception(f"Query failed: {result.get('error_message', 'Unknown error')}")
+            raise Exception(
+                f"Query failed: {result.get('error_message', 'Unknown error')}"
+            )
 
         if result["response_type"] == "single":
             query_result = result["response"]
@@ -915,7 +962,11 @@ class PGLiteResult:
         self.rows = rows
         self.columns = columns
         self._index = 0
+        self.rowcount = len(rows)
 
+    def __iter__(self):
+        return iter(self.rows)
+    
     def fetchall(self):
         return self.rows
 
@@ -932,7 +983,11 @@ class PGLiteResult:
     def all(self):
         return self.fetchall()
 
-
+    def mappings(self):
+        # Convert each row to a dictionary using columns as keys
+        return [dict(zip(self.columns, row)) for row in self.rows]
+    
+    
 # Version-independent inspection registration
 # Check SQLAlchemy version and use the appropriate method for registering inspection
 SQLALCHEMY_VERSION = tuple(int(x) for x in sqlalchemy.__version__.split("."))

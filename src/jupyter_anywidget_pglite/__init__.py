@@ -16,7 +16,8 @@ import time
 from IPython.display import display
 
 import platform
-from sqlalchemy.sql import text
+from .sqlalchemy_api import dry_run_sql
+
 
 PLATFORM = platform.system().lower()
 
@@ -40,27 +41,6 @@ except importlib.metadata.PackageNotFoundError:
     __version__ = "unknown"
 
 AVAILABLE_EXTENSIONS = ["fuzzystrmatch", "pg_trgm", "vector", "tablefunc", "isn"]
-
-
-def dry_run_sql(query, params):
-    """Convert a PostgreSQL query with $1, $2 placeholders into a formatted SQL query"""
-
-    # Replace $1, $2, etc. with SQLAlchemy's named placeholders :param1, :param2, etc.
-    for i in range(1, len(params) + 1):
-        query = query.replace(f"${i}", f":param{i}")
-
-    # Convert params dictionary to match new placeholders
-    sqlalchemy_params = {
-        f"param{i}": value for i, value in enumerate(params.values(), start=1)
-    }
-
-    # Create SQLAlchemy text query
-    sql_query = text(query)
-
-    # Simulate the compiled SQL without executing it
-    compiled_sql = sql_query.compile(compile_kwargs={"literal_binds": True})
-
-    return str(compiled_sql)
 
 
 def load_datadump_from_file(file_path):
@@ -182,6 +162,10 @@ class postgresWidget(anywidget.AnyWidget):
             print(f"Params in query in __init__.py: {query} {params}")
             query = dry_run_sql(query, params)
             print(f"Updated query: {query}")
+            if isinstance(query, list):
+                self.multiexec=True
+                query = ";\n".join(query) + ";"
+                print(f"Double updated query: {query}")
         self.set_code_content(query)
 
         autorespond = self.prefer_use_blocking if autorespond is None else autorespond
