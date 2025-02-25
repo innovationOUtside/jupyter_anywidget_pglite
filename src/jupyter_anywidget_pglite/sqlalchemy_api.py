@@ -774,6 +774,21 @@ class PGLiteConnection:
             self._inspector = PGLiteInspector(self)
         return self._inspector
 
+    def scalars(self, statement, parameters=None, **kwargs):
+        """
+        Execute a statement and return scalar results.
+
+        This method is needed for pandas to_sql with if_exists='replace'.
+        """
+        result = self.execute(statement, parameters, **kwargs)
+        # Return just the values, not the entire result objects
+        if isinstance(result, list):
+            return [
+                row[0] if isinstance(row, (list, tuple)) and len(row) > 0 else row
+                for row in result
+            ]
+        return result
+
 
 class PGLiteTransaction:
     def __init__(self, connection):
