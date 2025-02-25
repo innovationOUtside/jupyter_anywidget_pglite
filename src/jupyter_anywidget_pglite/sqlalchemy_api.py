@@ -9,8 +9,8 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.pool import Pool
 from sqlalchemy import types as sqltypes
 from sqlalchemy.engine.default import DefaultDialect
-from sqlalchemy.dialects.postgresql.base import PGDialect
-from sqlalchemy.sql import compiler
+
+from sqlalchemy.dialects.postgresql.base import PGCompiler, PGDialect
 from sqlalchemy import inspect
 from sqlalchemy.engine.reflection import Inspector
 
