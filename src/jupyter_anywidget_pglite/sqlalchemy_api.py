@@ -24,6 +24,9 @@ from sqlalchemy.sql.compiler import IdentifierPreparer
 from sqlalchemy.sql.elements import quoted_name
 
 import sqlalchemy
+import logging
+
+logger = logging.getLogger(__name__)
 
 class PGLiteIdentifierPreparer(IdentifierPreparer):
     def __init__(self, dialect):
@@ -699,11 +702,11 @@ class PGLiteConnection:
         )
 
     def execute(self, statement, parameters=None, execution_options=None):
-        print(f"Executing statement of type: {type(statement)}")
+        logger.debug(f"Preparing to execute statement of type: {type(statement)}")
         if isinstance(statement, quoted_name):
             # Handle quoted_name instances
             query = statement.quote
-            print(f"Handled quoted_name instance: {query}")
+            logger.debug(f"Handled quoted_name instance: {query}")
         elif not isinstance(statement, str):
             # Create a proper compile context
             compiled = statement.compile(
@@ -713,30 +716,27 @@ class PGLiteConnection:
             )
             # Get the SQL string
             query = str(compiled)
-            print(f"Compiled statement to query: {query}")
+            logger.debug(f"Compiled statement to query: {query}")
 
             # Handle parameter binding if needed
             if parameters is None and hasattr(compiled, "params"):
                 parameters = compiled.params
         else:
             query = str(statement)
-            print(f"Statement is already a string: {query}")
+            logger.debug(f"Statement is already a string: {query}")
 
         if query is None:
-            print("Query is None after processing statement")
+            logger.debug("Query is None after processing statement")
             return
 
-        print(f"Executing query: {query}")
-
-        result = self.widget.query(query, multi=False, autorespond=True)
+        logger.debug(f"Executing query: {query}")
+        logger.debug(f"With parameters: {parameters}")
+        
+        result = self.widget.query(query, params=parameters, multi=False, autorespond=True)
 
         if result["status"] != "completed":
-            if parameters:
-                print(f"With parameters: {parameters}")
-            print(f"Result: {result}")
-            raise Exception(
-                f"Query failed: {result.get('error_message', 'Unknown error')}"
-            )
+            logger.error(f"Query failed with result: {result}")
+            raise Exception(f"Query failed: {result.get('error_message', 'Unknown error')}")
 
         if result["response_type"] == "single":
             query_result = result["response"]
