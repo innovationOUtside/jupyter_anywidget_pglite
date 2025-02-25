@@ -138,7 +138,10 @@ class postgresWidget(anywidget.AnyWidget):
                     )
                 time.sleep(0.1)
         if self.response["status"] == "error":
-            warnings.warn(self.response["error_message"])
+            if "error_message" in self.response:
+                warnings.warn(self.response["error_message"])
+            else:
+                warnings.warn("Something broke...")
         return
 
     def ready(self, timeout=5):
@@ -211,6 +214,9 @@ class postgresWidget(anywidget.AnyWidget):
         self.multiline = split
         self.response = {"status": "processing"}
         self.code_content = ""
+        if value is None:
+            self.response = {"status": "error"}
+            return
         self.code_content = value
 
     # Need to guard this out in JupyterLite (definitely in pyodide)
