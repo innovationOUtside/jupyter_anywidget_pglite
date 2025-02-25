@@ -19,7 +19,7 @@ class PGliteMagic(Magics):
         # print(f"pglite_magic object set to: {self.widget_name}")
 
     def _run_query(self, args, q):
-        if args.widget_name:
+        if getattr(args, "widget_name"):
             self._set_widget(args.widget_name)
         multiple_statements = getattr(args, "multiple_statements", False)
         splitter = ";" if multiple_statements else ""
