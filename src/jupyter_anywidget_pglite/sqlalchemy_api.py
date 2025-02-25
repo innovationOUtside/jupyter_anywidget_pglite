@@ -1,27 +1,318 @@
 from IPython.display import display
 import platform
+import re
 
 PLATFORM = platform.system().lower()
 
-# Via: claude.ai
-from sqlalchemy.engine import Engine, Connection
+# SQLAlchemy imports
+from sqlalchemy.engine import Engine
 from sqlalchemy.pool import Pool
-from sqlalchemy.dialects import registry
-from sqlalchemy.engine import default
 from sqlalchemy import types as sqltypes
 from sqlalchemy.engine.default import DefaultDialect
+from sqlalchemy.dialects.postgresql.base import PGDialect
 from sqlalchemy.sql import compiler
-from sqlalchemy.engine.cursor import CursorResult
-from sqlalchemy import text
+from sqlalchemy import inspect
+from sqlalchemy.engine.reflection import Inspector
 
-import re
+
+# from sqlalchemy.ext.compiler import compiles
+# from sqlalchemy.sql.elements import BindParameter
+# from sqlalchemy.sql.ddl import CreateTable, CreateIndex, CreateSchema
+from sqlalchemy.sql.compiler import DDLCompiler
+# from sqlalchemy.dialects.postgresql.base import PGDialect, PGDDLCompiler
+from sqlalchemy.sql.compiler import IdentifierPreparer
+from sqlalchemy.sql.elements import quoted_name
+
+import sqlalchemy
+
+class PGLiteIdentifierPreparer(IdentifierPreparer):
+    def __init__(self, dialect):
+        super().__init__(dialect, initial_quote='"', final_quote='"', escape_quote='"')
+
 
 class PGLiteCompiler(compiler.SQLCompiler):
+    def process(self, stmt, **kw):
+        """Process the statement before compiling."""
+        print(f"DEBUG - processing statement: {type(stmt)}")
+        result = super().process(stmt, **kw)
+        print(f"DEBUG - compiled to: {result}")
+        return result
+
     def visit_bindparam(self, bindparam, **kw):
         return "$" + str(self.bindtemplate % bindparam.position)
 
+    def visit_table(self, table, **kw):
+        # Ensure table names are properly quoted
+        if isinstance(table, str):
+            return f'"{table}"'
+        return f'"{table.name}"'
 
-class PGLiteDialect(DefaultDialect):
+
+    def visit_insert(self, insert_stmt, **kw):
+        # Get the table
+        table = insert_stmt.table
+
+        # Check if this is a multi-values insert (common with pandas)
+        if insert_stmt._has_multi_parameters:
+            # Multi-row insert
+            stmt = f'INSERT INTO "{table.name}" ('
+
+            # Get column names
+            column_names = [c.key for c in insert_stmt.parameters[0].keys()]
+            stmt += ", ".join(f'"{col}"' for col in column_names)
+            stmt += ") VALUES "
+
+            # Add parameter placeholders for each row
+            values_clauses = []
+            bind_index = 1
+            for param_set in insert_stmt.parameters:
+                value_clause = "("
+                value_terms = []
+                for col in column_names:
+                    value_terms.append(f"${bind_index}")
+                    bind_index += 1
+                value_clause += ", ".join(value_terms) + ")"
+                values_clauses.append(value_clause)
+
+            stmt += ", ".join(values_clauses)
+            return stmt
+        else:
+            # Single row insert
+            stmt = f'INSERT INTO "{table.name}" ('
+
+            # Get column names
+            if insert_stmt.parameters:
+                column_names = [c.key for c in insert_stmt.parameters.keys()]
+            else:
+                column_names = [c.name for c in table.columns]
+
+            stmt += ", ".join(f'"{col}"' for col in column_names)
+            stmt += ") VALUES ("
+
+            # Add placeholders for values
+            placeholders = []
+            for i in range(len(column_names)):
+                placeholders.append(f"${i+1}")
+
+            stmt += ", ".join(placeholders)
+            stmt += ")"
+
+            return stmt
+
+
+class PGLiteDDLCompiler(DDLCompiler):
+    def __init__(self, dialect, statement, **kw):
+        # Remove 'checkfirst' if present before calling parent constructor
+        checkfirst = kw.pop("checkfirst", None)
+        super().__init__(dialect, statement, **kw)
+        self.checkfirst = checkfirst
+
+    def visit_table(self, table, **kw):
+        """Visit a Table object."""
+        return self.preparer.format_table(table)
+
+    def visit_column(self, column, **kw):
+        """Visit a Column object."""
+        return self.preparer.format_column(column)
+
+    # Other visit methods that might be needed
+    def visit_index(self, index, **kw):
+        """Visit an Index object."""
+        return self.preparer.format_index(index)
+
+    def visit_schema(self, schema, **kw):
+        """Visit a Schema object."""
+        return self.preparer.format_schema(schema)
+
+    def visit_create_table(self, create, **kw):
+        # Handle checkfirst parameter for table creation
+        if getattr(self, "checkfirst", False):
+            return f"""
+                DO $$ 
+                BEGIN
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = '{create.element.name}') THEN
+                        {super().visit_create_table(create, **kw)}
+                    END IF;
+                END $$;
+            """
+        else:
+            return super().visit_create_table(create, **kw)
+
+
+class PGLiteInspector(Inspector):
+    def __init__(self, conn):
+        super().__init__(conn)
+        self.conn = conn
+        self.dialect = conn.dialect
+        self.info_cache = {}
+
+    def get_schema_names(self):
+        query = "SELECT nspname FROM pg_namespace WHERE nspname !~ '^pg_' AND nspname != 'information_schema';"
+        result = self.conn.execute(query)
+        return [row[0] for row in result.fetchall()]
+
+    def get_table_names(self, schema=None):
+        schema = schema or "public"
+        query = (
+            f"SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname = '{schema}';"
+        )
+        result = self.conn.execute(query)
+        return [row[0] for row in result.fetchall()]
+
+    def get_columns(self, table_name, schema=None):
+        schema = schema or "public"
+        query = f"""
+        SELECT column_name, data_type, is_nullable, column_default 
+        FROM information_schema.columns 
+        WHERE table_name = '{table_name}'
+        AND table_schema = '{schema}';
+        """
+        result = self.conn.execute(query)
+
+        columns = []
+        for row in result.fetchall():
+            column = {
+                "name": row[0],
+                "type": self._get_column_type(row[1]),
+                "nullable": row[2] == "YES",
+                "default": row[3],
+            }
+            columns.append(column)
+
+        return columns
+
+    def _get_column_type(self, type_name):
+        # Map PostgreSQL types to SQLAlchemy types
+        if "char" in type_name or "text" in type_name:
+            return sqltypes.String
+        elif "int" in type_name:
+            return sqltypes.Integer
+        elif "float" in type_name or "double" in type_name or "numeric" in type_name:
+            return sqltypes.Float
+        elif "bool" in type_name:
+            return sqltypes.Boolean
+        elif "date" in type_name:
+            return sqltypes.Date
+        elif "time" in type_name and "without" in type_name:
+            return sqltypes.Time
+        elif "time" in type_name and "with" in type_name:
+            return sqltypes.DateTime
+        elif "bytea" in type_name:
+            return sqltypes.LargeBinary
+        # Add more type mappings as needed
+        return sqltypes.String  # Default fallback
+
+    def get_pk_constraint(self, table_name, schema=None):
+        schema = schema or "public"
+        query = f"""
+        SELECT kcu.column_name
+        FROM information_schema.table_constraints AS tc
+        JOIN information_schema.key_column_usage AS kcu 
+            ON tc.constraint_name = kcu.constraint_name
+            AND tc.table_schema = kcu.table_schema
+        WHERE tc.constraint_type = 'PRIMARY KEY' 
+            AND kcu.table_name = '{table_name}'
+            AND kcu.table_schema = '{schema}';
+        """
+        result = self.conn.execute(query)
+
+        primary_keys = [row[0] for row in result.fetchall()]
+
+        return {
+            "constrained_columns": primary_keys,
+            "name": f"pk_{table_name}" if primary_keys else None,
+        }
+
+    def get_foreign_keys(self, table_name, schema=None):
+        schema = schema or "public"
+        query = f"""
+        SELECT 
+            kcu.column_name, 
+            ccu.table_schema, 
+            ccu.table_name, 
+            ccu.column_name,
+            tc.constraint_name
+        FROM information_schema.table_constraints AS tc
+        JOIN information_schema.key_column_usage AS kcu 
+            ON tc.constraint_name = kcu.constraint_name
+            AND tc.table_schema = kcu.table_schema
+        JOIN information_schema.constraint_column_usage AS ccu 
+            ON ccu.constraint_name = tc.constraint_name
+            AND ccu.table_schema = tc.table_schema
+        WHERE tc.constraint_type = 'FOREIGN KEY' 
+            AND kcu.table_name = '{table_name}'
+            AND kcu.table_schema = '{schema}';
+        """
+        result = self.conn.execute(query)
+
+        foreign_keys = []
+        for row in result.fetchall():
+            fk = {
+                "name": row[4] if len(row) > 4 else f"fk_{table_name}_{row[0]}",
+                "constrained_columns": [row[0]],
+                "referred_schema": row[1] if row[1] else schema,
+                "referred_table": row[2],
+                "referred_columns": [row[3]],
+            }
+            foreign_keys.append(fk)
+
+        return foreign_keys
+
+    def get_indexes(self, table_name, schema=None):
+        schema = schema or "public"
+        # First get index names
+        query = f"""
+        SELECT indexname, indexdef
+        FROM pg_indexes
+        WHERE tablename = '{table_name}' AND schemaname = '{schema}';
+        """
+        result = self.conn.execute(query)
+
+        indexes = []
+        for row in result.fetchall():
+            index_name = row[0]
+            index_def = row[1]
+
+            # Try to extract column names from index definition
+            column_match = re.search(r"\((.*?)\)", index_def)
+            column_names = []
+            if column_match:
+                column_str = column_match.group(1)
+                column_names = [c.strip() for c in column_str.split(",")]
+
+            index = {
+                "name": index_name,
+                "column_names": column_names,
+                "unique": "UNIQUE" in index_def.upper(),
+            }
+            indexes.append(index)
+
+        return indexes
+
+    def has_table(self, table_name, schema=None):
+        schema = schema or "public"
+        query = f"""
+        SELECT 1 FROM information_schema.tables 
+        WHERE table_name = '{table_name}' AND table_schema = '{schema}';
+        """
+        result = self.conn.execute(query)
+        return bool(result.fetchone())
+
+    def has_schema(self, schema_name):
+        query = f"SELECT 1 FROM pg_namespace WHERE nspname = '{schema_name}';"
+        result = self.conn.execute(query)
+        return bool(result.fetchone())
+
+    def get_view_names(self, schema=None):
+        schema = schema or "public"
+        query = (
+            f"SELECT viewname FROM pg_catalog.pg_views WHERE schemaname = '{schema}';"
+        )
+        result = self.conn.execute(query)
+        return [row[0] for row in result.fetchall()]
+
+
+class PGLiteDialect(PGDialect):
     name = "pglite"
     driver = "widget"
 
@@ -34,9 +325,10 @@ class PGLiteDialect(DefaultDialect):
     returns_unicode_strings = True
     description_encoding = None
     supports_native_boolean = True
-
     statement_compiler = PGLiteCompiler
+    ddl_compiler = PGLiteDDLCompiler
     poolclass = Pool
+    preparer = PGLiteIdentifierPreparer
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -50,6 +342,11 @@ class PGLiteDialect(DefaultDialect):
 
     def do_ping(self, dbapi_connection):
         return True
+
+    def get_schema_names(self, connection, **kw):
+        query = "SELECT nspname FROM pg_namespace WHERE nspname !~ '^pg_' AND nspname != 'information_schema';"
+        result = connection.execute(query)
+        return [row[0] for row in result.fetchall()]
 
     def schema_for_object(self, obj):
         """Return the schema for an object (e.g., table) in the database."""
@@ -70,11 +367,52 @@ class PGLiteDialect(DefaultDialect):
             return "public"  # or fetch the actual schema from the query result
         return "public"  # Default to 'public' schema
 
+    def has_schema(self, connection, schema_name, **kw):
+        query = f"SELECT 1 FROM pg_namespace WHERE nspname = '{schema_name}';"
+        result = connection.execute(query)
+        return bool(result.fetchone())
+
+    def has_table(self, connection, table_name, schema=None, **kw):
+        schema = schema or "public"
+        query = f"""
+        SELECT 1 FROM information_schema.tables 
+        WHERE table_name = '{table_name}' AND table_schema = '{schema}';
+        """
+        result = connection.execute(query)
+        return bool(result.fetchone())
+
+    def has_sequence(self, connection, sequence_name, schema=None, **kw):
+        schema = schema or "public"
+        query = f"""
+        SELECT 1 FROM information_schema.sequences 
+        WHERE sequence_name = '{sequence_name}' AND sequence_schema = '{schema}';
+        """
+        result = connection.execute(query)
+        return bool(result.fetchone())
+
+    def get_table_names(self, connection, schema=None, **kw):
+        schema = schema or "public"
+        query = (
+            f"SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname = '{schema}';"
+        )
+        result = connection.execute(query)
+        return [row[0] for row in result.fetchall()]
+
+    def get_view_names(self, connection, schema=None, **kw):
+        schema = schema or "public"
+        query = (
+            f"SELECT viewname FROM pg_catalog.pg_views WHERE schemaname = '{schema}';"
+        )
+        result = connection.execute(query)
+        return [row[0] for row in result.fetchall()]
+
     def get_columns(self, connection, table_name, schema=None, **kw):
+        schema = schema or "public"
         query = f"""
         SELECT column_name, data_type, is_nullable, column_default 
         FROM information_schema.columns 
-        WHERE table_name = '{table_name}';
+        WHERE table_name = '{table_name}'
+        AND table_schema = '{schema}';
         """
         result = connection.execute(query)
 
@@ -82,9 +420,7 @@ class PGLiteDialect(DefaultDialect):
         for row in result.fetchall():
             column = {
                 "name": row[0],
-                "type": (
-                    sqltypes.String if "char" in row[1] else sqltypes.Integer
-                ),  # Map SQL types
+                "type": self._get_column_type(row[1]),
                 "nullable": row[2] == "YES",
                 "default": row[3],
             }
@@ -92,14 +428,29 @@ class PGLiteDialect(DefaultDialect):
 
         return columns
 
-    def get_table_names(self, connection, schema=None, **kw):
-        query = (
-            "SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname = 'public';"
-        )
-        result = connection.execute(query)
-        return [row[0] for row in result.fetchall()]
+    def _get_column_type(self, type_name):
+        # Map PostgreSQL types to SQLAlchemy types
+        if "char" in type_name or "text" in type_name:
+            return sqltypes.String()
+        elif "int" in type_name:
+            return sqltypes.Integer()
+        elif "float" in type_name or "double" in type_name or "numeric" in type_name:
+            return sqltypes.Float()
+        elif "bool" in type_name:
+            return sqltypes.Boolean()
+        elif "date" in type_name:
+            return sqltypes.Date()
+        elif "time" in type_name and "without" in type_name:
+            return sqltypes.Time()
+        elif "time" in type_name and "with" in type_name:
+            return sqltypes.DateTime()
+        elif "bytea" in type_name:
+            return sqltypes.LargeBinary()
+        # Add more type mappings as needed
+        return sqltypes.String()  # Default fallback
 
     def get_pk_constraint(self, connection, table_name, schema=None, **kw):
+        schema = schema or "public"
         query = f"""
         SELECT kcu.column_name
         FROM information_schema.table_constraints AS tc
@@ -107,7 +458,8 @@ class PGLiteDialect(DefaultDialect):
             ON tc.constraint_name = kcu.constraint_name
             AND tc.table_schema = kcu.table_schema
         WHERE tc.constraint_type = 'PRIMARY KEY' 
-            AND kcu.table_name = '{table_name}';
+            AND kcu.table_name = '{table_name}'
+            AND kcu.table_schema = '{schema}';
         """
         result = connection.execute(query)
 
@@ -118,11 +470,15 @@ class PGLiteDialect(DefaultDialect):
             "name": f"pk_{table_name}" if primary_keys else None,
         }
 
-
     def get_foreign_keys(self, connection, table_name, schema=None, **kw):
+        schema = schema or "public"
         query = f"""
-        SELECT kcu.column_name, ccu.table_schema AS referred_schema, 
-            ccu.table_name AS foreign_table, ccu.column_name AS foreign_column
+        SELECT 
+            kcu.column_name, 
+            ccu.table_schema, 
+            ccu.table_name, 
+            ccu.column_name,
+            tc.constraint_name
         FROM information_schema.table_constraints AS tc
         JOIN information_schema.key_column_usage AS kcu 
             ON tc.constraint_name = kcu.constraint_name
@@ -131,57 +487,122 @@ class PGLiteDialect(DefaultDialect):
             ON ccu.constraint_name = tc.constraint_name
             AND ccu.table_schema = tc.table_schema
         WHERE tc.constraint_type = 'FOREIGN KEY' 
-            AND kcu.table_name = '{table_name}';
+            AND kcu.table_name = '{table_name}'
+            AND kcu.table_schema = '{schema}';
         """
         result = connection.execute(query)
 
         foreign_keys = []
         for row in result.fetchall():
             fk = {
-                "name": f"fk_{table_name}_{row[0]}",
+                "name": row[4] if len(row) > 4 else f"fk_{table_name}_{row[0]}",
                 "constrained_columns": [row[0]],
-                "referred_schema": (
-                    row[1] if len(row) > 1 else schema or "public"
-                ),  # Add this line
-                "referred_table": (
-                    row[2] if len(row) > 2 else row[1]
-                ),  # Adjust index based on query
-                "referred_columns": [
-                    row[3] if len(row) > 3 else row[2]
-                ],  # Adjust index based on query
+                "referred_schema": row[1] if row[1] else schema,
+                "referred_table": row[2],
+                "referred_columns": [row[3]],
             }
             foreign_keys.append(fk)
 
         return foreign_keys
 
     def get_indexes(self, connection, table_name, schema=None, **kw):
-        # Get basic index information
+        schema = schema or "public"
+        # First get index names
         query = f"""
         SELECT indexname, indexdef
         FROM pg_indexes
-        WHERE tablename = '{table_name}' AND schemaname = 'public';
+        WHERE tablename = '{table_name}' AND schemaname = '{schema}';
         """
         result = connection.execute(query)
 
         indexes = []
         for row in result.fetchall():
-            # This is a simplified approach - you might need to improve the parsing
-            # based on your specific index definitions
-            indexdef = row[1]
-            column_match = re.search(r"\((.*?)\)", indexdef)
+            index_name = row[0]
+            index_def = row[1]
+
+            # Try to extract column names from index definition
+            column_match = re.search(r"\((.*?)\)", index_def)
             column_names = []
             if column_match:
                 column_str = column_match.group(1)
                 column_names = [c.strip() for c in column_str.split(",")]
 
             index = {
-                "name": row[0],
-                "column_names": column_names,  # Required by SQLAlchemy
-                "unique": "UNIQUE" in indexdef.upper(),
+                "name": index_name,
+                "column_names": column_names,
+                "unique": "UNIQUE" in index_def.upper(),
             }
             indexes.append(index)
 
         return indexes
+
+    def get_unique_constraints(self, connection, table_name, schema=None, **kw):
+        schema = schema or "public"
+        query = f"""
+        SELECT tc.constraint_name, kcu.column_name
+        FROM information_schema.table_constraints AS tc
+        JOIN information_schema.key_column_usage AS kcu
+            ON tc.constraint_name = kcu.constraint_name
+        WHERE tc.constraint_type = 'UNIQUE'
+            AND tc.table_name = '{table_name}'
+            AND tc.table_schema = '{schema}'
+        ORDER BY tc.constraint_name, kcu.ordinal_position;
+        """
+        result = connection.execute(query)
+
+        constraints = {}
+        for constraint_name, column_name in result.fetchall():
+            if constraint_name not in constraints:
+                constraints[constraint_name] = {
+                    "name": constraint_name,
+                    "column_names": [],
+                }
+            constraints[constraint_name]["column_names"].append(column_name)
+
+        return list(constraints.values())
+
+    def get_table_comment(self, connection, table_name, schema=None, **kw):
+        schema = schema or "public"
+        query = f"""
+        SELECT obj_description(c.oid)
+        FROM pg_class c
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE c.relname = '{table_name}'
+        AND n.nspname = '{schema}';
+        """
+        result = connection.execute(query)
+        comment = result.fetchone()
+
+        return {"text": comment[0] if comment and comment[0] else ""}
+
+    def get_check_constraints(self, connection, table_name, schema=None, **kw):
+        schema = schema or "public"
+        query = f"""
+        SELECT conname, pg_get_expr(conbin, conrelid) AS consrc
+        FROM pg_constraint
+        WHERE conrelid = (
+            SELECT oid
+            FROM pg_class
+            WHERE relname = '{table_name}'
+            AND relnamespace = (
+                SELECT oid
+                FROM pg_namespace
+                WHERE nspname = '{schema}'
+            )
+        )
+        AND contype = 'c';
+        """
+        result = connection.execute(query)
+
+        check_constraints = []
+        for row in result.fetchall():
+            constraint = {
+                "name": row[0],
+                "sqltext": row[1],
+            }
+            check_constraints.append(constraint)
+
+        return check_constraints
 
 
 class PGLiteEngine(Engine):
@@ -200,6 +621,19 @@ class PGLiteEngine(Engine):
     def begin(self):
         return self.connect().begin()
 
+    def _execute_context(self, dialect, constructor, statement, parameters, *args, **kw):
+        """Custom execute context method to handle compilation."""
+        connection = self.connect()
+        try:
+            if not isinstance(statement, str):
+                compiled = statement.compile(dialect=self.dialect)
+                statement = str(compiled)
+                if parameters is None:
+                    parameters = compiled.params
+            return connection.execute(statement, parameters)
+        finally:
+            connection.close()
+
 
 class PGLiteConnection:
     def __init__(self, engine):
@@ -208,12 +642,55 @@ class PGLiteConnection:
         self._active_transaction = None
         self._closed = False
         self.dialect = engine.dialect
+        self._inspector = None
+
+    def _execute_clauseelement(
+        self, elem, multiparams=None, params=None, execution_options=None
+    ):
+        """Execute a clause element (like a Table, Select, Insert, etc.)."""
+        if multiparams is not None or params is not None:
+            # If parameters are provided, use them
+            return self.execute(elem, multiparams or params, execution_options)
+        else:
+            # Otherwise, just execute the element
+            return self.execute(elem, execution_options=execution_options)
+
+    def _execute_compiled(self, compiled, parameters, **kwargs):
+        """Execute a compiled SQL statement with parameters."""
+        if parameters is not None:
+            # Here you would normally bind parameters, but for simplicity:
+            statement = str(compiled)
+            return self.execute(statement, parameters)
+        else:
+            return self.execute(str(compiled))
+
+    def _handle_dbapi_exception(self, e, statement, parameters, cursor, context):
+        """Handle exceptions raised by the DBAPI."""
+        # In a real implementation, you'd want proper error handling here
+        raise e
 
     def __getattr__(self, name):
         # Delegate attribute access to the dialect if not found in connection
         if hasattr(self.dialect, name):
             return getattr(self.dialect, name)
         raise AttributeError(f"'PGLiteConnection' object has no attribute '{name}'")
+
+    def _run_ddl_visitor(self, visitorcallable, element, **kwargs):
+        """Run a DDL visitor on an element.
+
+        This method is called by SQLAlchemy when it needs to execute DDL statements.
+        """
+        # Use the dialect's visitor to compile the DDL element into a string
+        ddl_compiler = self.dialect.ddl_compiler(self.dialect, element, **kwargs)
+        compiled_ddl = str(ddl_compiler)
+
+        # Execute the compiled DDL statement
+        return self.execute(compiled_ddl)
+
+    def _run_visitor(self, visitorcallable, element, **kwargs):
+        """Run a visitor on an element."""
+        visitorcallable(self.dialect, element, **kwargs).traverse_single(element)
+        return element
 
     def in_transaction(self):
         """Return True if a transaction is active."""
@@ -222,13 +699,41 @@ class PGLiteConnection:
         )
 
     def execute(self, statement, parameters=None, execution_options=None):
-        if isinstance(statement, str):
-            statement = text(statement)
-        query = str(statement)
+        print(f"Executing statement of type: {type(statement)}")
+        if isinstance(statement, quoted_name):
+            # Handle quoted_name instances
+            query = statement.quote
+            print(f"Handled quoted_name instance: {query}")
+        elif not isinstance(statement, str):
+            # Create a proper compile context
+            compiled = statement.compile(
+                dialect=self.dialect,
+                column_keys=parameters.keys() if parameters else None,
+                inline=True,
+            )
+            # Get the SQL string
+            query = str(compiled)
+            print(f"Compiled statement to query: {query}")
+
+            # Handle parameter binding if needed
+            if parameters is None and hasattr(compiled, "params"):
+                parameters = compiled.params
+        else:
+            query = str(statement)
+            print(f"Statement is already a string: {query}")
+
+        if query is None:
+            print("Query is None after processing statement")
+            return
+
+        print(f"Executing query: {query}")
 
         result = self.widget.query(query, multi=False, autorespond=True)
 
         if result["status"] != "completed":
+            if parameters:
+                print(f"With parameters: {parameters}")
+            print(f"Result: {result}")
             raise Exception(
                 f"Query failed: {result.get('error_message', 'Unknown error')}"
             )
@@ -262,6 +767,12 @@ class PGLiteConnection:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
+
+    # Additional methods to support sqlalchemy's inspection API
+    def get_inspector(self):
+        if not self._inspector:
+            self._inspector = PGLiteInspector(self)
+        return self._inspector
 
 
 class PGLiteTransaction:
@@ -314,6 +825,41 @@ class PGLiteResult:
 
     def all(self):
         return self.fetchall()
+
+
+# Version-independent inspection registration
+# Check SQLAlchemy version and use the appropriate method for registering inspection
+SQLALCHEMY_VERSION = tuple(int(x) for x in sqlalchemy.__version__.split("."))
+
+# For older versions of SQLAlchemy
+if hasattr(inspect, "_inspects"):
+
+    @inspect._inspects(PGLiteConnection)
+    def _inspect_pglite_connection(conn):
+        return conn.get_inspector()
+
+
+# For SQLAlchemy 1.4+
+elif hasattr(sqlalchemy, "inspection"):
+
+    @sqlalchemy.inspection._inspects(PGLiteConnection)
+    def _inspect_pglite_connection(conn):
+        return conn.get_inspector()
+
+
+# For very old versions - just define the function without decorator
+else:
+
+    def _inspect_pglite_connection(conn):
+        return conn.get_inspector()
+
+    # Try to manually register if possible
+    try:
+        # This is a fallback that may work in some versions
+        sqlalchemy.inspection._registrars[PGLiteConnection] = _inspect_pglite_connection
+    except (AttributeError, NameError):
+        # If all else fails, we'll just rely on the get_inspector method
+        pass
 
 
 def create_engine(widget):
