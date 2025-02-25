@@ -37,6 +37,11 @@ class PGLiteCompiler(PGCompiler):
     bindtemplate = "$%(position)s"
     positional = True
 
+    # Add this method to ensure positional parameters are used
+    def _apply_numbered_params(self):
+        # Force using numbered parameters
+        return True
+
     def process(self, stmt, **kw):
         """Process the statement before compiling."""
         print(f"DEBUG - processing statement: {type(stmt)}")
@@ -50,25 +55,27 @@ class PGLiteCompiler(PGCompiler):
             return f'"{table}"'
         return f'"{table.name}"'
 
-
     def visit_insert(self, insert_stmt, **kw):
         # Get the table
         table = insert_stmt.table
 
+        # Check if explicit parameters are given in kw
+        parameters = kw.pop('parameters', {})
+
         # Check if this is a multi-values insert (common with pandas)
-        if insert_stmt._has_multi_parameters:
+        if isinstance(insert_stmt.values, list):
             # Multi-row insert
             stmt = f'INSERT INTO "{table.name}" ('
 
             # Get column names
-            column_names = [c.key for c in insert_stmt.parameters[0].keys()]
+            column_names = [c.key for c in insert_stmt.values[0].keys()]
             stmt += ", ".join(f'"{col}"' for col in column_names)
             stmt += ") VALUES "
 
             # Add parameter placeholders for each row
             values_clauses = []
             bind_index = 1
-            for param_set in insert_stmt.parameters:
+            for param_set in insert_stmt.values:
                 value_clause = "("
                 value_terms = []
                 for col in column_names:
@@ -80,27 +87,51 @@ class PGLiteCompiler(PGCompiler):
             stmt += ", ".join(values_clauses)
             return stmt
         else:
-            # Single row insert
+            # Handle single row insert with either positional or named parameters
             stmt = f'INSERT INTO "{table.name}" ('
 
-            # Get column names
-            if insert_stmt.parameters:
-                column_names = [c.key for c in insert_stmt.parameters.keys()]
+            # Get column names (with safer handling)
+            if hasattr(insert_stmt, 'parameters') and insert_stmt.parameters:
+                # Use provided parameters if available
+                column_names = list(insert_stmt.parameters.keys())
             else:
+                # Fall back to table columns
                 column_names = [c.name for c in table.columns]
 
             stmt += ", ".join(f'"{col}"' for col in column_names)
             stmt += ") VALUES ("
 
-            # Add placeholders for values
-            placeholders = []
-            for i in range(len(column_names)):
-                placeholders.append(f"${i+1}")
+            # Add parameter placeholders - use named parameters if available
+            if kw.get('use_named_parameters', False):
+                placeholders = [f":{col}" for col in column_names]
+            else:
+                placeholders = [f"${i+1}" for i in range(len(column_names))]
 
             stmt += ", ".join(placeholders)
             stmt += ")"
 
-            return stmt
+            # Define the params variable
+            params = {f"${i+1}": parameters[col] for i, col in enumerate(column_names)}
+
+            return stmt, params
+
+    def visit_array(self, array, **kw):
+        """Compile an array"""
+        return f"ARRAY[{', '.join(self.process(elem, **kw) for elem in array.clauses)}]"
+
+    def visit_array_column(self, element, **kw):
+        return "%s[%s]" % (
+            self.process(element.get_children()[0]),
+            self.process(element.get_children()[1]),
+        )
+
+    def render_literal_value(self, value, type_):
+        if isinstance(value, list):
+            return "ARRAY[%s]" % (
+                ", ".join(self.render_literal_value(x, type_) for x in value)
+            )
+        # Handle other types
+        return super().render_literal_value(value, type_)
 
 
 class PGLiteDDLCompiler(DDLCompiler):
@@ -318,6 +349,8 @@ class PGLiteInspector(Inspector):
 class PGLiteDialect(PGDialect):
     name = "pglite"
     driver = "widget"
+    paramstyle = "numeric"
+    positional = True
 
     supports_alter = True
     supports_pk_autoincrement = True
@@ -700,27 +733,85 @@ class PGLiteConnection:
         return (
             self._active_transaction is not None and self._active_transaction.is_active
         )
-
+    
     def execute(self, statement, parameters=None, execution_options=None):
         logger.debug(f"Preparing to execute statement of type: {type(statement)}")
+
         if isinstance(statement, quoted_name):
             # Handle quoted_name instances
             query = statement.quote
             logger.debug(f"Handled quoted_name instance: {query}")
         elif not isinstance(statement, str):
-            # Create a proper compile context
+            # Create a proper compile context with positional parameters
             compiled = statement.compile(
                 dialect=self.dialect,
-                column_keys=parameters.keys() if parameters else None,
-                inline=True,
+                compile_kwargs={"literal_binds": False}
             )
+            
             # Get the SQL string
             query = str(compiled)
             logger.debug(f"Compiled statement to query: {query}")
 
-            # Handle parameter binding if needed
+            # Convert parameters to positional format
             if parameters is None and hasattr(compiled, "params"):
                 parameters = compiled.params
+                
+            # Handle parameter conversion
+            if parameters:
+                logger.warning(f"THERE ARE PARAMETERS {parameters} for query {query}")
+                if hasattr(compiled, "positiontup") and compiled.positiontup:
+                    if isinstance(parameters, dict):
+                        # Convert named parameters to positional
+                        params_in_order = []
+                        for key in compiled.positiontup:
+                            # Handle column objects that might be in the keys
+                            param_key = key.key if hasattr(key, 'key') else key
+                            param_str_key = str(param_key)
+                            
+                            if param_key in parameters:
+                                params_in_order.append(parameters[param_key])
+                            elif param_str_key in parameters:
+                                params_in_order.append(parameters[param_str_key])
+                            else:
+                                logger.warning(f"Parameter {param_key} not found in parameters dict")
+                                params_in_order.append(None)
+                        
+                        parameters = params_in_order
+                        logger.debug(f"Converted parameters to positional: {parameters}")
+                    elif isinstance(parameters, list) and all(isinstance(p, dict) for p in parameters):
+                        # Handle list of dicts for bulk inserts
+                        if len(parameters) > 0:
+                            keys = list(parameters[0].keys())
+                            flat_params = []
+                            for param_dict in parameters:
+                                for key in keys:
+                                    flat_params.append(param_dict.get(key))
+                            parameters = flat_params
+                            logger.debug(f"Flattened bulk parameters: {parameters}")
+                
+                # Fix any parameter placeholders in the query if needed
+                # Convert %(name)s format to $N format
+                if "%" in query and "$" not in query:
+                    logger.debug("Converting named parameters to positional in query")
+                    
+                    # Simple conversion for common cases
+                    param_index = 1
+                    modified_query = ""
+                    i = 0
+                    while i < len(query):
+                        if query[i:i+2] == "%(" and ")s" in query[i:]:
+                            # Skip to end of placeholder
+                            end_pos = query.find(")s", i)
+                            if end_pos != -1:
+                                modified_query += f"${param_index}"
+                                param_index += 1
+                                i = end_pos + 2
+                                continue
+                        modified_query += query[i]
+                        i += 1
+                    
+                    query = modified_query
+                    logger.debug(f"Modified query: {query}")
         else:
             query = str(statement)
             logger.debug(f"Statement is already a string: {query}")
