@@ -244,6 +244,22 @@ class PGLiteInspector(Inspector):
         self.dialect = conn.dialect
         self.info_cache = {}
 
+    def _inspection_context(self):
+        """Return a context for inspection."""
+
+        # Create a simple context manager for the inspection
+        class InspectionContext:
+            def __init__(self, inspector):
+                self.inspector = inspector
+
+            def __enter__(self):
+                return self.inspector
+
+            def __exit__(self, exc_type, exc_val, exc_tb):
+                pass
+
+        return InspectionContext(self)
+
     def get_schema_names(self):
         query = "SELECT nspname FROM pg_namespace WHERE nspname !~ '^pg_' AND nspname != 'information_schema';"
         result = self.conn.execute(query)
@@ -389,12 +405,17 @@ class PGLiteInspector(Inspector):
 
     def has_table(self, table_name, schema=None):
         schema = schema or "public"
-        query = f"""
-        SELECT 1 FROM information_schema.tables 
-        WHERE table_name = '{table_name}' AND table_schema = '{schema}';
-        """
-        result = self.conn.execute(query)
-        return bool(result.fetchone())
+        try:
+            # Use direct SQL query to check table existence
+            query = f"""
+            SELECT 1 FROM information_schema.tables 
+            WHERE table_name = '{table_name}' AND table_schema = '{schema}';
+            """
+            result = self.conn.execute(query)
+            return bool(result.fetchone())
+        except Exception as e:
+            logger.warning(f"Error checking table existence: {e}")
+            return False
 
     def has_schema(self, schema_name):
         query = f"SELECT 1 FROM pg_namespace WHERE nspname = '{schema_name}';"
@@ -408,6 +429,77 @@ class PGLiteInspector(Inspector):
         )
         result = self.conn.execute(query)
         return [row[0] for row in result.fetchall()]
+
+    def reflect_table(
+        self, table, include_columns=None, exclude_columns=None, resolve_fks=False, **kw
+    ):
+        """Reflect a table from the database."""
+        schema = table.schema or "public"
+        table_name = table.name
+
+        # Check if table exists
+        if not self.has_table(table_name, schema):
+            raise sqlalchemy.exc.NoSuchTableError(table_name)
+
+        # Get table columns
+        columns = self.get_columns(table_name, schema)
+        if include_columns:
+            columns = [c for c in columns if c["name"] in include_columns]
+        if exclude_columns:
+            columns = [c for c in columns if c["name"] not in exclude_columns]
+
+        # Add columns to the table
+        for column_info in columns:
+            name = column_info["name"]
+            if include_columns and name not in include_columns:
+                continue
+            if exclude_columns and name in exclude_columns:
+                continue
+
+            # Get column attributes
+            type_ = column_info["type"]
+            nullable = column_info.get("nullable", True)
+            default = column_info.get("default")
+
+            # Create SQLAlchemy Column object
+            col_kw = {}
+            if default is not None:
+                col_kw["default"] = sqlalchemy.text(default)
+
+            # Add the column to the table
+            table.append_column(sqlalchemy.Column(name, type_, nullable=nullable, **col_kw))
+
+        # Get primary key constraint
+        pk_constraint = self.get_pk_constraint(table_name, schema)
+        if pk_constraint:
+            for col_name in pk_constraint["constrained_columns"]:
+                if col_name in table.c:
+                    table.c[col_name].primary_key = True
+
+        # Get foreign keys if requested
+        if resolve_fks:
+            fks = self.get_foreign_keys(table_name, schema)
+            for fk in fks:
+                # Only create foreign keys for columns we've reflected
+                if all(c in table.c for c in fk["constrained_columns"]):
+                    sqlalchemy.ForeignKeyConstraint(
+                        [table.c[cname] for cname in fk["constrained_columns"]],
+                        [f"{fk['referred_table']}.{col}" for col in fk["referred_columns"]],
+                        name=fk.get("name"),
+                        onupdate=fk.get("onupdate"),
+                        ondelete=fk.get("ondelete"),
+                    )
+
+        # Get indexes
+        indexes = self.get_indexes(table_name, schema)
+        for index_info in indexes:
+            name = index_info["name"]
+            columns = index_info["column_names"]
+            unique = index_info.get("unique", False)
+
+            # Create SQLAlchemy Index
+            if all(col in table.c for col in columns):
+                sqlalchemy.Index(name, *[table.c[col] for col in columns], unique=unique)
 
 
 class PGLiteDialect(PGDialect):
@@ -723,6 +815,43 @@ class PGLiteDialect(PGDialect):
 
         return check_constraints
 
+    def visit_create_table(self, create, **kw):
+        """Compile CREATE TABLE statement."""
+        table = create.element
+
+        # Generate column definitions
+        columns = []
+        for column in table.columns:
+            col_def = f'"{column.name}" {self.type_compiler.process(column.type)}'
+
+            # Add constraints like NOT NULL, PRIMARY KEY, etc.
+            if not column.nullable:
+                col_def += " NOT NULL"
+            if column.primary_key:
+                col_def += " PRIMARY KEY"
+            if column.default is not None:
+                col_def += f" DEFAULT {column.default.arg}"
+
+            columns.append(col_def)
+
+        # Construct CREATE TABLE statement
+        create_stmt = f'CREATE TABLE "{table.name}" (\n    '
+        create_stmt += ",\n    ".join(columns)
+        create_stmt += "\n)"
+
+        return create_stmt
+
+    def drop_table(self, connection, table_name, schema=None, **kw):
+        """Drop a table from the database."""
+        schema = schema or "public"
+
+        # Create the DROP TABLE statement
+        drop_stmt = f'DROP TABLE IF EXISTS "{schema}"."{table_name}"'
+
+        # Execute the statement
+        connection.execute(drop_stmt)
+        return True
+
 
 class PGLiteEngine(Engine):
     def __init__(self, widget):
@@ -767,7 +896,6 @@ class PGLiteConnection(Connection):
         self.dialect = engine.dialect
         self._inspector = None
         self._execution_options = {}
-
 
     def _execute_clauseelement(
         self, elem, multiparams=None, params=None, execution_options=None
@@ -825,6 +953,33 @@ class PGLiteConnection(Connection):
 
     def execute(self, statement, parameters=None, execution_options=None):
         logger.debug(f"Preparing to execute statement of type: {type(statement)}")
+
+        # Handle DROP TABLE statements specifically
+        if isinstance(statement, str) and statement.upper().startswith("DROP TABLE"):
+            logger.debug(f"Executing DROP TABLE: {statement}")
+            # Make sure your widget correctly handles this command
+            result = self.widget.query(statement, autorespond=True)
+            if result["status"] != "completed":
+                logger.error(f"DROP TABLE failed with result: {result}")
+                raise Exception(
+                    f"DROP TABLE failed: {result.get('error_message', 'Unknown error')}"
+                )
+
+            # Return empty result for successful DROP TABLE
+            return PGLiteResult(self, [], [])
+
+        # Handle CREATE TABLE statements better
+        if isinstance(statement, str) and statement.upper().startswith("CREATE TABLE"):
+            logger.debug(f"Handling CREATE TABLE: {statement}")
+            result = self.widget.query(statement, autorespond=True)
+            if result["status"] != "completed":
+                logger.error(f"CREATE TABLE failed with result: {result}")
+                raise Exception(
+                    f"CREATE TABLE failed: {result.get('error_message', 'Unknown error')}"
+                )
+
+            # Return empty result for successful CREATE TABLE
+            return PGLiteResult(self, [], [])
 
         if isinstance(statement, quoted_name):
             # Handle quoted_name instances
@@ -986,8 +1141,8 @@ class PGLiteResult:
     def mappings(self):
         # Convert each row to a dictionary using columns as keys
         return [dict(zip(self.columns, row)) for row in self.rows]
-    
-    
+
+
 # Version-independent inspection registration
 # Check SQLAlchemy version and use the appropriate method for registering inspection
 SQLALCHEMY_VERSION = tuple(int(x) for x in sqlalchemy.__version__.split("."))
