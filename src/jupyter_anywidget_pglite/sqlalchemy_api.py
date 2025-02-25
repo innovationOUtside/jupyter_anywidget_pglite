@@ -33,16 +33,16 @@ class PGLiteIdentifierPreparer(IdentifierPreparer):
         super().__init__(dialect, initial_quote='"', final_quote='"', escape_quote='"')
 
 
-class PGLiteCompiler(compiler.SQLCompiler):
+class PGLiteCompiler(PGCompiler):
+    bindtemplate = "$%(position)s"
+    positional = True
+
     def process(self, stmt, **kw):
         """Process the statement before compiling."""
         print(f"DEBUG - processing statement: {type(stmt)}")
         result = super().process(stmt, **kw)
         print(f"DEBUG - compiled to: {result}")
         return result
-
-    def visit_bindparam(self, bindparam, **kw):
-        return "$" + str(self.bindtemplate % bindparam.position)
 
     def visit_table(self, table, **kw):
         # Ensure table names are properly quoted
