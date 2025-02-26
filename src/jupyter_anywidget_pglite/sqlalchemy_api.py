@@ -35,6 +35,7 @@ from sqlalchemy.sql.elements import quoted_name
 
 import sqlalchemy
 import logging
+import warnings
 
 logger = logging.getLogger(__name__)
 
