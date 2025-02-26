@@ -23,7 +23,8 @@ from sqlalchemy.engine.base import Transaction
 from sqlalchemy.sql import insert, select
 from sqlalchemy.sql.dml import Insert
 from sqlalchemy.sql.selectable import Select
-from sqlalchemy.sql.ddl import CreateTable, DropTable
+from sqlalchemy.sql.ddl import CreateTable, DropTable, CreateIndex
+
 # from sqlalchemy.ext.compiler import compiles
 # from sqlalchemy.sql.elements import BindParameter
 # from sqlalchemy.sql.ddl import CreateTable, CreateIndex, CreateSchema
@@ -45,6 +46,8 @@ def dry_run_sql(query, params):
     elif isinstance(query, CreateTable):
         return str(query)
     elif isinstance(query, DropTable):
+        return str(query)
+    elif isinstance(query, CreateIndex):
         return str(query)
     elif isinstance(query, Insert):
         # If params is a list of dicts, generate individual INSERT statements
