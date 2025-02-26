@@ -954,7 +954,7 @@ class PGLiteConnection(Connection):
             self._active_transaction is not None and self._active_transaction.is_active
         )
 
-    def execute(self, statement, parameters=None, execution_options=None):
+    def execute(self, statement, parameters=None, execution_options=None, *args, **kwargs):
         logger.debug(f"Preparing to execute statement of type: {type(statement)}")
         logger.debug(f"Positional arguments (args): {args}")
         logger.debug(f"Keyword arguments (kwargs): {kwargs}")
