@@ -1086,6 +1086,9 @@ class PGLiteTransaction:
             self.is_active = False
             self.connection._active_transaction = None
 
+    def _run_ddl_visitor(self, visitorcallable, element, **kwargs):
+        return self.connection._run_ddl_visitor(visitorcallable, element, **kwargs)
+
     def __enter__(self):
         return self
 
