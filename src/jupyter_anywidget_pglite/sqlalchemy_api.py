@@ -826,33 +826,8 @@ class PGLiteDialect(PGDialect):
 
         return check_constraints
 
-    def visit_create_table(self, create, **kw):
-        """Compile CREATE TABLE statement."""
-        table = create.element
 
-        # Generate column definitions
-        columns = []
-        for column in table.columns:
-            col_def = f'"{column.name}" {self.type_compiler.process(column.type)}'
-
-            # Add constraints like NOT NULL, PRIMARY KEY, etc.
-            if not column.nullable:
-                col_def += " NOT NULL"
-            if column.primary_key:
-                col_def += " PRIMARY KEY"
-            if column.default is not None:
-                col_def += f" DEFAULT {column.default.arg}"
-
-            columns.append(col_def)
-
-        # Construct CREATE TABLE statement
-        create_stmt = f'CREATE TABLE "{table.name}" (\n    '
-        create_stmt += ",\n    ".join(columns)
-        create_stmt += "\n)"
-
-        return create_stmt
-
-    def drop_table(self, connection, table_name, schema=None, **kw):
+    def visit_drop_table(self, connection, table_name, schema=None, **kw):
         """Drop a table from the database."""
         schema = schema or "public"
 
@@ -895,7 +870,6 @@ class PGLiteEngine(Engine):
             return connection.execute(statement, parameters)
         finally:
             connection.close()
-
 
 class PGLiteConnection(Connection):
     def __init__(self, engine):
