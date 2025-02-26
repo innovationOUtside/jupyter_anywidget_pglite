@@ -1,15 +1,12 @@
-from IPython.display import display
 import platform
 import re
 
 PLATFORM = platform.system().lower()
 
 # SQLAlchemy imports
-from sqlalchemy.engine import Engine
+from sqlalchemy.engine import Engine, Connection
 from sqlalchemy.pool import Pool
 from sqlalchemy import types as sqltypes
-from sqlalchemy.engine.default import DefaultDialect
-from sqlalchemy.engine import Connection
 from sqlalchemy.dialects.postgresql.base import (
     PGCompiler,
     PGDialect,
@@ -17,22 +14,13 @@ from sqlalchemy.dialects.postgresql.base import (
     PGDDLCompiler,
     PGIdentifierPreparer,
 )
-from sqlalchemy import inspect
-from sqlalchemy.engine.reflection import Inspector
-from sqlalchemy.engine.base import Transaction
-from sqlalchemy.sql import insert, select
 from sqlalchemy.sql.dml import Insert
 from sqlalchemy.sql.selectable import Select
 from sqlalchemy.sql.ddl import CreateTable, DropTable, CreateIndex
 
-# from sqlalchemy.ext.compiler import compiles
-# from sqlalchemy.sql.elements import BindParameter
-# from sqlalchemy.sql.ddl import CreateTable, CreateIndex, CreateSchema
-from sqlalchemy.sql.compiler import DDLCompiler
-
-from sqlalchemy.sql.compiler import IdentifierPreparer
 from sqlalchemy.sql.elements import quoted_name
-
+from sqlalchemy.exc import NoSuchTableError, SAWarning
+from sqlalchemy import inspect, inspection, text, Column, Index, ForeignKeyConstraint
 import sqlalchemy
 import logging
 import warnings
@@ -59,7 +47,6 @@ def dry_run_sql(query, params):
                     compile_kwargs={"literal_binds": True}
                 )
                 # Hackfix
-                from sqlalchemy.exc import SAWarning
                 warnings.filterwarnings("ignore", category=SAWarning)
                 compiled_sql = str(compiled_sql).replace("= NULL", "IS NULL")
                 compiled_sqls.append(compiled_sql)  # Convert to string
@@ -458,7 +445,7 @@ class PGLiteInspector(PGInspector):
 
         # Check if table exists
         if not self.has_table(table_name, schema):
-            raise sqlalchemy.exc.NoSuchTableError(table_name)
+            raise NoSuchTableError(table_name)
 
         # Get table columns
         columns = self.get_columns(table_name, schema)
@@ -483,10 +470,10 @@ class PGLiteInspector(PGInspector):
             # Create SQLAlchemy Column object
             col_kw = {}
             if default is not None:
-                col_kw["default"] = sqlalchemy.text(default)
+                col_kw["default"] = text(default)
 
             # Add the column to the table
-            table.append_column(sqlalchemy.Column(name, type_, nullable=nullable, **col_kw))
+            table.append_column(Column(name, type_, nullable=nullable, **col_kw))
 
         # Get primary key constraint
         pk_constraint = self.get_pk_constraint(table_name, schema)
@@ -501,7 +488,7 @@ class PGLiteInspector(PGInspector):
             for fk in fks:
                 # Only create foreign keys for columns we've reflected
                 if all(c in table.c for c in fk["constrained_columns"]):
-                    sqlalchemy.ForeignKeyConstraint(
+                    ForeignKeyConstraint(
                         [table.c[cname] for cname in fk["constrained_columns"]],
                         [f"{fk['referred_table']}.{col}" for col in fk["referred_columns"]],
                         name=fk.get("name"),
@@ -518,7 +505,7 @@ class PGLiteInspector(PGInspector):
 
             # Create SQLAlchemy Index
             if all(col in table.c for col in columns):
-                sqlalchemy.Index(name, *[table.c[col] for col in columns], unique=unique)
+                Index(name, *[table.c[col] for col in columns], unique=unique)
 
 
 class PGLiteDialect(PGDialect):
@@ -1189,7 +1176,7 @@ else:
     # Try to manually register if possible
     try:
         # This is a fallback that may work in some versions
-        sqlalchemy.inspection._registrars[PGLiteConnection] = _inspect_pglite_connection
+        inspection._registrars[PGLiteConnection] = _inspect_pglite_connection
     except (AttributeError, NameError):
         # If all else fails, we'll just rely on the get_inspector method
         pass
@@ -1198,8 +1185,13 @@ else:
 def create_engine(widget):
     """Create a SQLAlchemy engine from a postgresWidget."""
     if PLATFORM == "emscripten":
-        display(
+        print(
             "SQLAlchemy connections not currently available on emscripten platforms."
         )
+        print(
+            "You can try to create a sqlalchemy engine as:"
+        )
+        print("from jupyter_anywidget_pglite.sqlalchemy_api import PGLiteEngine")
+        print("engine = PGLiteEngine(pg_widget)")
         return
     return PGLiteEngine(widget)
