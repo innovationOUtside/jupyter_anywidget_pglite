@@ -158,14 +158,14 @@ class postgresWidget(anywidget.AnyWidget):
         # The df return will only apply if wait is available
         if multi is not None:
             self.multiexec = multi
-        if params:
-            print(f"Params in query in __init__.py: {query} {params}")
-            query = dry_run_sql(query, params)
-            print(f"Updated query: {query}")
-            if isinstance(query, list):
-                self.multiexec=True
-                query = ";\n".join(query) + ";"
-                print(f"Double updated query: {query}")
+        print(f"Params in query in __init__.py: {query} {params}")
+        query = dry_run_sql(query, params)
+        print(f"Updated query: {query}")
+        if isinstance(query, list):
+            self.multiexec=True
+            query = ";\n".join(query) + ";"
+            print(f"Double updated query: {query}")
+                
         self.set_code_content(query)
 
         autorespond = self.prefer_use_blocking if autorespond is None else autorespond

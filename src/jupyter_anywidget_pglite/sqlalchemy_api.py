@@ -17,7 +17,7 @@ from sqlalchemy.engine.reflection import Inspector
 from sqlalchemy.sql import insert, select
 from sqlalchemy.sql.dml import Insert
 from sqlalchemy.sql.selectable import Select
-
+from sqlalchemy.sql.ddl import CreateTable, DropTable
 # from sqlalchemy.ext.compiler import compiles
 # from sqlalchemy.sql.elements import BindParameter
 # from sqlalchemy.sql.ddl import CreateTable, CreateIndex, CreateSchema
@@ -35,7 +35,13 @@ logger = logging.getLogger(__name__)
 
 def dry_run_sql(query, params):
     # Check if the query is an INSERT
-    if isinstance(query, Insert):
+    if isinstance(query, str):
+        return query
+    elif isinstance(query, CreateTable):
+        return str(query)
+    elif isinstance(query, DropTable):
+        return str(query)
+    elif isinstance(query, Insert):
         # If params is a list of dicts, generate individual INSERT statements
         if isinstance(params, list):
             compiled_sqls = []
@@ -72,7 +78,7 @@ def dry_run_sql(query, params):
 
     # Handle other types of queries, if needed (for example, DELETE or UPDATE)
     else:
-        raise ValueError("Unsupported query type")
+        raise ValueError(f"Unsupported query type: {type(query)}")
 
 
 class PGLiteIdentifierPreparer(IdentifierPreparer):
