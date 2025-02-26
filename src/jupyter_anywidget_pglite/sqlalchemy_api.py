@@ -58,7 +58,11 @@ def dry_run_sql(query, params):
                 compiled_sql = query.values(**param).compile(
                     compile_kwargs={"literal_binds": True}
                 )
-                compiled_sqls.append(str(compiled_sql))  # Convert to string
+                # Hackfix
+                from sqlalchemy.exc import SAWarning
+                warnings.filterwarnings("ignore", category=SAWarning)
+                compiled_sql = str(compiled_sql).replace("= NULL", "IS NULL")
+                compiled_sqls.append(compiled_sql)  # Convert to string
             return compiled_sqls
         else:
             # Handle single row insertion
