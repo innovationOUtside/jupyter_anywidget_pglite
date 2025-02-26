@@ -263,7 +263,7 @@ If audible alerts are enabled, if an error is raised, an audible alert will soun
 - JupyterLab (presumably also Jupyter notebook v7(?))
 - VS Code (not the side panel)
 - JupyterLite (not the blocking parts)
-- [`marimo` notebooks](https://marimo.app/l/9mv768) (note the magics, not the side panel, (blocking not tested))
+- [`marimo` notebooks](https://marimo.app/l/9mv768) (note the magics, not the side panel, (blocking not tested); [another example](https://marimo.app/l/g0o2k9) *(shows pandas connection broken in marimo?)*)
 
 ![Example of usage in marimo](images/marimo_pglite_example.png)
 
