@@ -10,10 +10,16 @@ from sqlalchemy.pool import Pool
 from sqlalchemy import types as sqltypes
 from sqlalchemy.engine.default import DefaultDialect
 from sqlalchemy.engine import Connection
-from sqlalchemy.dialects.postgresql.base import PGCompiler, PGDialect
+from sqlalchemy.dialects.postgresql.base import (
+    PGCompiler,
+    PGDialect,
+    PGInspector,
+    PGDDLCompiler,
+    PGIdentifierPreparer,
+)
 from sqlalchemy import inspect
 from sqlalchemy.engine.reflection import Inspector
-
+from sqlalchemy.engine.base import Transaction
 from sqlalchemy.sql import insert, select
 from sqlalchemy.sql.dml import Insert
 from sqlalchemy.sql.selectable import Select
@@ -23,7 +29,6 @@ from sqlalchemy.sql.ddl import CreateTable, DropTable
 # from sqlalchemy.sql.ddl import CreateTable, CreateIndex, CreateSchema
 from sqlalchemy.sql.compiler import DDLCompiler
 
-# from sqlalchemy.dialects.postgresql.base import PGDialect, PGDDLCompiler
 from sqlalchemy.sql.compiler import IdentifierPreparer
 from sqlalchemy.sql.elements import quoted_name
 
@@ -81,7 +86,7 @@ def dry_run_sql(query, params):
         raise ValueError(f"Unsupported query type: {type(query)}")
 
 
-class PGLiteIdentifierPreparer(IdentifierPreparer):
+class PGLiteIdentifierPreparer(PGIdentifierPreparer):
     def __init__(self, dialect):
         super().__init__(dialect, initial_quote='"', final_quote='"', escape_quote='"')
 
@@ -204,7 +209,7 @@ class PGLiteCompiler(PGCompiler):
         return super().render_literal_value(value, type_)
 
 
-class PGLiteDDLCompiler(DDLCompiler):
+class PGLiteDDLCompiler(PGDDLCompiler):
     def __init__(self, dialect, statement, **kw):
         # Remove 'checkfirst' if present before calling parent constructor
         checkfirst = kw.pop("checkfirst", None)
@@ -230,7 +235,7 @@ class PGLiteDDLCompiler(DDLCompiler):
 
     def visit_create_table(self, create, **kw):
         # Handle checkfirst parameter for table creation
-        if getattr(self, "checkfirst", False):
+        if getattr(create, "checkfirst", False):
             return f"""
                 DO $$ 
                 BEGIN
@@ -243,7 +248,7 @@ class PGLiteDDLCompiler(DDLCompiler):
             return super().visit_create_table(create, **kw)
 
 
-class PGLiteInspector(Inspector):
+class PGLiteInspector(PGInspector):
     def __init__(self, conn):
         super().__init__(conn)
         self.conn = conn
