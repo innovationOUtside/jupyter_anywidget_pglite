@@ -102,9 +102,9 @@ class PGLiteCompiler(PGCompiler):
 
     def process(self, stmt, **kw):
         """Process the statement before compiling."""
-        print(f"DEBUG - processing statement: {type(stmt)}")
+        logger.debug(f"process statement: {type(stmt)}")
         result = super().process(stmt, **kw)
-        print(f"DEBUG - preprocessed to: {result}")
+        logger.debug(f"preprocessed to: {result}")
         return result
 
     def visit_table(self, table, **kw):

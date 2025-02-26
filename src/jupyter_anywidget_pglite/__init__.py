@@ -12,6 +12,7 @@ import base64
 import os
 from pathlib import Path
 import time
+import logging
 
 from IPython.display import display
 
@@ -20,6 +21,8 @@ from .sqlalchemy_api import dry_run_sql
 
 
 PLATFORM = platform.system().lower()
+
+logger = logging.getLogger(__name__)
 
 try:
     from jupyter_ui_poll import ui_events
@@ -158,14 +161,14 @@ class postgresWidget(anywidget.AnyWidget):
         # The df return will only apply if wait is available
         if multi is not None:
             self.multiexec = multi
-        print(f"Params in query in __init__.py: {query} {params}")
+        logger.debug(f"Params in query in __init__.py: {query} {params}")
         query = dry_run_sql(query, params)
-        print(f"Updated query: {query}")
+        logger.debug(f"Updated query: {query}")
         if isinstance(query, list):
             self.multiexec=True
             query = ";\n".join(query) + ";"
-            print(f"Double updated query: {query}")
-                
+            logger.debug(f"Double updated query: {query}")
+
         self.set_code_content(query)
 
         autorespond = self.prefer_use_blocking if autorespond is None else autorespond
