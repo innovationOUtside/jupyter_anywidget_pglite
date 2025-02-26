@@ -940,16 +940,24 @@ class PGLiteConnection(Connection):
         raise AttributeError(f"'PGLiteConnection' object has no attribute '{name}'")
 
     def _run_ddl_visitor(self, visitorcallable, element, **kwargs):
-        """Run a DDL visitor on an element.
+        """Run a DDL visitor on an element."""
+        # Create the visitor with self as the connection
+        visitor = visitorcallable(self.dialect, self)
 
-        This method is called by SQLAlchemy when it needs to execute DDL statements.
-        """
-        # Use the dialect's visitor to compile the DDL element into a string
-        ddl_compiler = self.dialect.ddl_compiler(self.dialect, element, **kwargs)
-        compiled_ddl = str(ddl_compiler)
+        # Traverse the element to collect all DDL statements
+        visitor.traverse(element)
 
-        # Execute the compiled DDL statement
-        return self.execute(compiled_ddl)
+        if hasattr(visitor, "collected_ddl"):
+            # For each DDL statement (like CreateTable) collected by the visitor
+            for stmt in visitor.collected_ddl:
+                # Compile the statement using the dialect's DDL compiler
+                compiled = stmt.compile(dialect=self.dialect)
+
+                # Convert to a string and execute
+                sql_string = compiled
+                # sql_string = str(compiled)
+                logger.debug("_run_ddl_visitor sql: {sql_string}")
+                self.execute(sql_string)
 
     def _run_visitor(self, visitorcallable, element, **kwargs):
         """Run a visitor on an element."""
