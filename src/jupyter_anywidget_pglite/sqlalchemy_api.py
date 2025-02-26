@@ -956,6 +956,8 @@ class PGLiteConnection(Connection):
 
     def execute(self, statement, parameters=None, execution_options=None):
         logger.debug(f"Preparing to execute statement of type: {type(statement)}")
+        logger.debug(f"Positional arguments (args): {args}")
+        logger.debug(f"Keyword arguments (kwargs): {kwargs}")
 
         # Handle DROP TABLE statements specifically
         if isinstance(statement, str) and statement.upper().startswith("DROP TABLE"):
@@ -986,8 +988,14 @@ class PGLiteConnection(Connection):
 
         if isinstance(statement, quoted_name):
             # Handle quoted_name instances
+            # query = statement.quote
+            # TO DO - this is not gettimng handled
+            logger.debug(
+                f"How to handle quoted_name? Params: {parameters}; execution options: {execution_options}"
+            )
             query = statement.quote
-            logger.debug(f"Handled quoted_name instance: {query}")
+            logger.debug(f"Handled quoted_name instance: {str(statement)} /  {query}")
+
         elif not isinstance(statement, str):
             # Create a proper compile context with positional parameters
             compiled = statement.compile(
@@ -1021,9 +1029,9 @@ class PGLiteConnection(Connection):
             logger.debug("Query is None after processing statement")
             return
 
-        logger.debug(f"Executing query: {query}")
+        logger.debug(f"Executing query: {query}, {type(query)}")
         logger.debug(f"With parameters: {parameters}")
-
+        logger.debug("Calling widget query...")
         result = self.widget.query(
             query, params=parameters, multi=False, autorespond=True
         )
