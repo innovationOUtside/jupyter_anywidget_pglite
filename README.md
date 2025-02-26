@@ -136,7 +136,7 @@ pg_headless.insert_from_df("test", df, autorespond=True)
 
 Partial support is provided for DBAPI2 and SQLAlchemy connections. 
 
-For example, we can pass a connection into a `pandas.read_sql()` function (this probably won't work in JupyterLite, marimo, etc., where blocking is not supported):
+For example, we can pass a connection into a `pandas.read_sql()` function (note that this doesn't work in marimo):
 
 ```python
 from jupyter_anywidget_pglite.dbapi2 import create_connection
@@ -154,7 +154,7 @@ engine = create_engine(pg_headless)
 pd.read_sql("SELECT * FROM test;", engine)
 ```
 
-The SQLalchemy engine now also supports *pandas* `.to_sql()` for adding dataframe data to a table.
+The SQLalchemy engine now also supports *pandas* `.to_sql()` for adding dataframe data to a table (doesn't work in marimo).
 
 ### Blocking
 
