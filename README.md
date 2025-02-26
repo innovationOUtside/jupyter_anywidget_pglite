@@ -147,12 +147,14 @@ pd.read_sql("SELECT * FROM test;", conn)
 
 
 ```python
-# Minimal SQLAlchemy connection object support
+# SQLAlchemy engine support
 from jupyter_anywidget_pglite.sqlalchemy_api import create_engine
 
-conn2 = create_engine(pg_headless)
-pd.read_sql("SELECT * FROM test;", conn2)
+engine = create_engine(pg_headless)
+pd.read_sql("SELECT * FROM test;", engine)
 ```
+
+The SQLalchemy engine now also supports *pandas* `.to_sql()` for adding dataframe data to a table.
 
 ### Blocking
 
