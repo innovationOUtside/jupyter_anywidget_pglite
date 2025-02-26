@@ -156,6 +156,19 @@ pd.read_sql("SELECT * FROM test;", engine)
 
 The SQLalchemy engine now also supports *pandas* `.to_sql()` for adding dataframe data to a table (doesn't work in marimo).
 
+```python
+%pip install sqlalchemy jupyter_anywidget_pglite
+from jupyter_anywidget_pglite import pglite_headless
+pg = pglite_headless()
+
+from jupyter_anywidget_pglite.sqlalchemy_api import create_engine
+engine = create_engine(pg)
+
+import pandas as pd
+df = pd.DataFrame({"id":[1,2], "name":["Alice", "Bob"]})
+df.to_sql(name="test", con=engine, if_exists="replace", index=True)
+```
+
 ### Blocking
 
 Note that the `pglite` query runs asynchronously, so how do we know on the Python side when the response is ready?
