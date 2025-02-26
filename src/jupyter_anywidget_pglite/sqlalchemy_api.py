@@ -882,6 +882,24 @@ class PGLiteConnection(Connection):
         self._inspector = None
         self._execution_options = {}
 
+    def _form_result(self, result):
+        """Create a response object from a query."""
+        if result["status"] != "completed":
+            logger.error(f"Query failed with result: {result}")
+            raise Exception(
+                f"Query failed: {result.get('error_message', 'Unknown error')}"
+            )
+
+        if result["response_type"] == "single":
+            query_result = result["response"]
+        else:
+            query_result = result["response"][-1]
+
+        rows = [tuple(row.values()) for row in query_result["rows"]]
+        columns = [field["name"] for field in query_result["fields"]]
+
+        return PGLiteResult(self, rows, columns)
+
     def _execute_clauseelement(
         self, elem, multiparams=None, params=None, execution_options=None
     ):
@@ -1009,22 +1027,9 @@ class PGLiteConnection(Connection):
         result = self.widget.query(
             query, params=parameters, multi=False, autorespond=True
         )
-
-        if result["status"] != "completed":
-            logger.error(f"Query failed with result: {result}")
-            raise Exception(
-                f"Query failed: {result.get('error_message', 'Unknown error')}"
-            )
-
-        if result["response_type"] == "single":
-            query_result = result["response"]
-        else:
-            query_result = result["response"][-1]
-
-        rows = [tuple(row.values()) for row in query_result["rows"]]
-        columns = [field["name"] for field in query_result["fields"]]
-
-        return PGLiteResult(self, rows, columns)
+        logger.debug(f"Out of widget query... {result}")
+        result = self._form_result(result)
+        return result
 
     def exec_driver_sql(self, statement, parameters=None, execution_options=None):
         return self.execute(statement, parameters, execution_options)
