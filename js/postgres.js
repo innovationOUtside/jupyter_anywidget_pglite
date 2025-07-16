@@ -125,7 +125,7 @@ function render({ model, el }) {
 
     try {
       const db = await PGlite.create({
-        datadir: idb,
+        dataDir: idb,
         options: options,
         extensions: extensionsObj,
       });
