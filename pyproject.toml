@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "jupyter_anywidget_pglite"
-version = "0.1.17"
-dependencies = ["anywidget==0.9.13", "pandas"]
+version = "0.1.18"
+dependencies = ["anywidget==0.9.13", "pandas", "sqlalchemy"]
 readme = "README.md"
 authors = [
     {name = "Tony Hirst", email = "tony.hirst@gmail.com"},
